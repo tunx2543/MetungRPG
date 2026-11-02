@@ -1,0 +1,1139 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MET - 2D RPG Mobile Game (App Runner Fixed)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        * { user-select: none; -webkit-user-select: none; touch-action: manipulation; }
+        body { background-color: #090d16; color: #f8fafc; font-family: 'Inter', system-ui, sans-serif; overflow: hidden; margin: 0; padding: 0; }
+        canvas { image-rendering: pixelated; -webkit-tap-highlight-color: transparent; display: block; }
+        button { touch-action: none; cursor: pointer; }
+        @keyframes crownGlow {
+            0% { box-shadow: 0 0 5px #fbbf24, inset 0 0 5px #fbbf24; }
+            50% { box-shadow: 0 0 20px #f59e0b, inset 0 0 10px #f59e0b; }
+            100% { box-shadow: 0 0 5px #fbbf24, inset 0 0 5px #fbbf24; }
+        }
+        .gm-profile-crown { animation: crownGlow 2.5s infinite; border-color: #f59e0b !important; }
+        @keyframes ticker {
+            0% { transform: translateX(100%); }
+            100% { transform: translateX(-100%); }
+        }
+        .animate-ticker { animation: ticker 10s linear infinite; }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col items-center justify-center bg-slate-950 p-0 m-0 overflow-hidden">
+
+    <!-- แถบประกาศแบนเนอร์วิ่งเลื่อน (Broadcast Ticker) -->
+    <div id="broadcastBanner" class="hidden absolute top-0 left-0 right-0 bg-gradient-to-r from-amber-600 via-orange-600 to-amber-600 text-slate-950 font-black text-xs py-1.5 px-4 z-50 overflow-hidden whitespace-nowrap shadow-lg border-b border-amber-300 pointer-events-none">
+        <div id="broadcastText" class="inline-block animate-ticker">🎉 ประกาศ: [Hero_Pro99] สุ่มได้ [🟡 ดาบมหาเทพ UR] จากตู้กาชาตำนาน!</div>
+    </div>
+
+    <!-- หน้าเมนูเริ่มเกมหลัก -->
+    <div id="startScreen" class="fixed inset-0 bg-slate-950 flex flex-col items-center justify-center z-40 p-6 text-center">
+        <div class="text-6xl mb-3 animate-pulse">⚔️</div>
+        <h1 class="text-4xl font-black text-amber-400 mb-1 tracking-wider">MET</h1>
+        <p class="text-slate-400 text-xs mb-6">2D RPG Mobile World - รองรับการรันบนแอปมือถือ</p>
+        
+        <div id="maintNotice" class="hidden mb-4 bg-rose-500/20 border border-rose-500 text-rose-300 px-4 py-2 rounded-xl text-xs font-bold animate-bounce">
+            🚧 เซิร์ฟเวอร์กำลังปิดปรับปรุง (GM เข้าได้ปกติ)
+        </div>
+
+        <div class="w-full max-w-xs space-y-3 pointer-events-auto">
+            <button id="startSingleBtn" onclick="startGame()" class="w-full py-3.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 text-slate-950 font-black rounded-2xl shadow-lg border border-amber-300 text-sm active:scale-95 transition">
+                ▶️ เริ่มเข้าสู่เกม
+            </button>
+            <button onclick="toggleMultiplayerMenu()" class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-2xl shadow-lg border border-indigo-400 text-sm active:scale-95 transition">
+                🌐 เล่นกับเพื่อน (Online Room)
+            </button>
+        </div>
+    </div>
+
+    <!-- หน้าต่างห้องเล่นกับเพื่อน -->
+    <div id="multiplayerModal" class="hidden fixed inset-0 bg-black/85 flex items-center justify-center z-50 p-4">
+        <div class="bg-slate-900 p-5 rounded-3xl border border-indigo-500 w-80 text-center space-y-3 shadow-2xl">
+            <h3 class="text-base font-black text-indigo-400">🌐 ระบบห้องออนไลน์ MET</h3>
+            <p class="text-xs text-slate-300">สร้างห้องจำลองหรือใส่รหัสทดสอบได้:</p>
+            <input type="text" id="roomCodeInput" placeholder="ใส่รหัสห้อง (เช่น MET-999)" class="w-full bg-slate-800 border border-slate-700 p-2.5 rounded-xl text-xs text-center text-white focus:outline-none focus:border-indigo-500">
+            <button onclick="createRoom()" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs shadow">🏠 สร้างห้องใหม่</button>
+            <button onclick="joinRoom()" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs shadow">🚀 เข้าร่วมห้องเพื่อน</button>
+            <button onclick="toggleMultiplayerMenu()" class="text-xs text-slate-500 hover:text-white pt-1">ปิดหน้าต่าง</button>
+        </div>
+    </div>
+
+    <!-- หน้าจอเล่นเกม -->
+    <div id="gameScreen" class="hidden relative w-full h-full overflow-hidden flex items-center justify-center">
+        <canvas id="gameCanvas" class="w-full h-full bg-slate-900 cursor-pointer"></canvas>
+
+        <!-- กรอบโปรไฟล์ตัวละครมุมซ้ายบนพร้อมปุ่มย่อ/ขยาย -->
+        <div id="profileBoxContainer" class="absolute top-2 left-2 z-20 flex flex-col items-start transition-all duration-300">
+            <button onclick="toggleProfileMinimize()" id="profileToggleBtn" class="bg-slate-800 text-amber-400 px-2 py-0.5 rounded-t-lg text-[9px] font-bold border border-b-0 border-slate-700">▲ โปรไฟล์</button>
+            <div id="profileBox" class="flex items-center gap-2 bg-slate-900/90 backdrop-blur px-2.5 py-1.5 rounded-b-xl rounded-tr-xl border-2 border-slate-700 shadow-xl transition-all duration-300">
+                <div id="profileAvatarRing" class="relative w-9 h-9 rounded-lg bg-slate-800 border-2 border-indigo-500 flex items-center justify-center overflow-hidden shrink-0 shadow-inner">
+                    <span id="profileClassIcon" class="text-xl">⚔️</span>
+                    <span class="absolute -top-1 -right-1 bg-amber-500 text-slate-950 font-black text-[8px] px-1 rounded-full shadow" id="profileLvBadge">Lv.1</span>
+                </div>
+                <div class="flex flex-col gap-0.5 w-28 sm:w-32">
+                    <div class="flex justify-between items-center text-[9px] font-bold">
+                        <span id="mapNameText" class="text-amber-400 truncate max-w-[65px]">เมืองหลวง</span>
+                        <span id="goldText" class="text-yellow-400 shrink-0">🪙 10000G</span>
+                    </div>
+                    <div class="relative w-full bg-slate-800 h-1.5 rounded-full overflow-hidden border border-slate-700">
+                        <div id="hpBar" class="bg-rose-500 h-full w-full transition-all duration-200"></div>
+                        <span class="absolute inset-0 flex items-center justify-center text-[7px] font-bold text-white" id="hpText">HP 100/100</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-1">
+                        <div class="relative w-full bg-slate-800 h-1 rounded-full overflow-hidden">
+                            <div id="spBar" class="bg-cyan-500 h-full w-full"></div>
+                        </div>
+                        <div class="relative w-full bg-slate-800 h-1 rounded-full overflow-hidden">
+                            <div id="expBar" class="bg-purple-500 h-full w-0"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- แถบปุ่มควบคุมมุมขวาบน -->
+        <div class="absolute top-2 right-2 flex items-center gap-1.5 bg-slate-900/80 backdrop-blur px-2 py-1 rounded-lg border border-slate-700/60 z-20">
+            <button onclick="toggleStatsModal()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-2 py-0.5 rounded-md text-[11px] shadow">📊 สเตตัส</button>
+            <button onclick="toggleSkillModal()" class="bg-purple-600 hover:bg-purple-500 text-white font-bold px-2 py-0.5 rounded-md text-[11px] shadow">✨ สกิล</button>
+            <button onclick="toggleGMModal()" class="bg-amber-500 hover:bg-amber-600 text-slate-950 font-black px-2 py-0.5 rounded-md border border-amber-300 shadow text-[11px]">👑 GM</button>
+            <button onclick="toggleSound()" id="soundToggleBtn" class="bg-slate-800 hover:bg-slate-700 text-slate-200 p-1 rounded-md border border-slate-600 text-xs">🔊</button>
+            <button onclick="toggleFullscreen()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 p-1 rounded-md border border-slate-600 text-xs">📺</button>
+            <button onclick="toggleCodex()" class="bg-indigo-700 hover:bg-indigo-600 text-white font-bold px-2 py-0.5 rounded-md text-[11px]">📚 Codex</button>
+        </div>
+
+        <!-- ช่องแชทถาวรพร้อมปุ่มย่อ/ขยาย (มุมซ้ายล่าง เหนือ D-Pad) -->
+        <div id="chatBoxContainer" class="absolute bottom-40 left-4 w-72 z-20 flex flex-col items-start transition-all duration-300 pointer-events-auto">
+            <button onclick="toggleChatMinimize()" id="chatToggleBtn" class="bg-slate-800 text-indigo-400 px-2 py-0.5 rounded-t-lg text-[9px] font-bold border border-b-0 border-slate-700">▲ ช่องแชท</button>
+            <div id="permanentChat" class="w-full h-32 bg-slate-900/90 backdrop-blur rounded-b-2xl rounded-tr-2xl border border-slate-700 p-2 flex flex-col shadow-lg">
+                <div id="permChatMessages" class="flex-1 overflow-y-auto space-y-1 text-[10px] text-slate-200 pr-1">
+                    <div class="text-slate-400 italic">🌐 เข้าสู่เซิร์ฟเวอร์ MET สำเร็จ...</div>
+                    <div class="text-indigo-300"><b>System:</b> ยินดีต้อนรับสู่นักผจญภัยทุกท่าน!</div>
+                </div>
+                <div class="flex gap-1 pt-1.5 border-t border-slate-800">
+                    <input type="text" id="permChatInput" placeholder="พิมพ์แชท..." class="flex-1 bg-slate-800 border border-slate-700 px-2 py-1 rounded-lg text-[10px] text-white focus:outline-none focus:border-indigo-500" onkeydown="if(event.key==='Enter') sendPermChat()">
+                    <button onclick="sendPermChat()" class="bg-indigo-600 hover:bg-indigo-500 px-2.5 py-1 rounded-lg text-[10px] font-bold text-white">ส่ง</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- หน้าต่างสเตตัสตัวละคร -->
+        <div id="statsModal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+            <div class="bg-slate-900 p-5 rounded-3xl border-2 border-emerald-500 w-80 max-h-[85vh] flex flex-col shadow-2xl space-y-3">
+                <div class="flex justify-between items-center border-b border-slate-700 pb-2">
+                    <h3 class="text-base font-black text-emerald-400">📊 สเตตัสตัวละคร</h3>
+                    <button onclick="toggleStatsModal()" class="text-slate-400 hover:text-white">✕</button>
+                </div>
+                <div class="text-xs text-slate-300 space-y-2">
+                    <div class="bg-slate-800 p-2.5 rounded-xl flex justify-between">
+                        <span>แต้มสเตตัสคงเหลือ:</span>
+                        <span id="statPointsText" class="text-amber-400 font-black">0 แต้ม</span>
+                    </div>
+                    <div class="space-y-1.5">
+                        <div class="flex justify-between items-center bg-slate-800 p-2 rounded-xl">
+                            <div>
+                                <div class="font-bold text-rose-400">STR (พละกำลัง)</div>
+                                <div class="text-[10px] text-slate-400">เพิ่มพลังโจมตี: +<span id="strVal">10</span></div>
+                            </div>
+                            <button onclick="allocateStat('str')" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1 rounded-lg text-xs">+</button>
+                        </div>
+                        <div class="flex justify-between items-center bg-slate-800 p-2 rounded-xl">
+                            <div>
+                                <div class="font-bold text-cyan-400">AGI (ความว่องไว)</div>
+                                <div class="text-[10px] text-slate-400">เพิ่มความเร็ว: +<span id="agiVal">5</span></div>
+                            </div>
+                            <button onclick="allocateStat('agi')" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1 rounded-lg text-xs">+</button>
+                        </div>
+                        <div class="flex justify-between items-center bg-slate-800 p-2 rounded-xl">
+                            <div>
+                                <div class="font-bold text-emerald-400">VIT (ความอึด)</div>
+                                <div class="text-[10px] text-slate-400">เพิ่มเลือดสูงสุด: +<span id="vitVal">100</span> HP</div>
+                            </div>
+                            <button onclick="allocateStat('vit')" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1 rounded-lg text-xs">+</button>
+                        </div>
+                        <div class="flex justify-between items-center bg-slate-800 p-2 rounded-xl">
+                            <div>
+                                <div class="font-bold text-purple-400">INT (สติปัญญา)</div>
+                                <div class="text-[10px] text-slate-400">เพิ่มมานาสูงสุด: +<span id="intVal">50</span> SP</div>
+                            </div>
+                            <button onclick="allocateStat('int')" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1 rounded-lg text-xs">+</button>
+                        </div>
+                    </div>
+                </div>
+                <button onclick="toggleStatsModal()" class="w-full py-2 bg-slate-700 hover:bg-slate-600 rounded-xl text-xs font-bold text-white">ปิดหน้าต่าง</button>
+            </div>
+        </div>
+
+        <!-- หน้าต่างอัปเกรดสกิล -->
+        <div id="skillModal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+            <div class="bg-slate-900 p-5 rounded-3xl border-2 border-purple-500 w-80 max-h-[85vh] flex flex-col shadow-2xl space-y-3">
+                <div class="flex justify-between items-center border-b border-slate-700 pb-2">
+                    <h3 class="text-base font-black text-purple-400">✨ ระบบอัปเกรดสกิล</h3>
+                    <button onclick="toggleSkillModal()" class="text-slate-400 hover:text-white">✕</button>
+                </div>
+                <div class="text-xs text-slate-300 space-y-2">
+                    <div class="bg-slate-800 p-2.5 rounded-xl flex justify-between">
+                        <span>แต้มสกิลคงเหลือ:</span>
+                        <span id="skillPointsText" class="text-amber-400 font-black">0 แต้ม</span>
+                    </div>
+                    <div class="space-y-2">
+                        <div class="bg-slate-800 p-2.5 rounded-xl space-y-1.5">
+                            <div class="flex justify-between items-center">
+                                <span class="font-bold text-rose-400">🔥 เพลิงพิฆาต (Slash)</span>
+                                <span id="skill1Lvl" class="text-xs font-bold text-white">Lv.1</span>
+                            </div>
+                            <div class="text-[10px] text-slate-400">สร้างความเสียหายรุนแรงเป็นวงกว้างตรงหน้า</div>
+                            <button onclick="upgradeSkill(1)" class="w-full py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg text-xs">อัปเกรดสกิล (+1)</button>
+                        </div>
+                        <div class="bg-slate-800 p-2.5 rounded-xl space-y-1.5">
+                            <div class="flex justify-between items-center">
+                                <span class="font-bold text-cyan-400">⚡ พายุสายฟ้า (Storm)</span>
+                                <span id="skill2Lvl" class="text-xs font-bold text-white">Lv.1</span>
+                            </div>
+                            <div class="text-[10px] text-slate-400">เรียกสายฟ้าฟาดรอบตัวโจมตีมอนสเตอร์รอบข้าง</div>
+                            <button onclick="upgradeSkill(2)" class="w-full py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg text-xs">อัปเกรดสกิล (+1)</button>
+                        </div>
+                    </div>
+                </div>
+                <button onclick="toggleSkillModal()" class="w-full py-2 bg-slate-700 hover:bg-slate-600 rounded-xl text-xs font-bold text-white">ปิดหน้าต่าง</button>
+            </div>
+        </div>
+
+        <!-- หน้าต่างแจ้งเตือนตัวละครตาย -->
+        <div id="deathModal" class="hidden absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-slate-900/95 backdrop-blur-md p-6 rounded-3xl border-2 border-rose-500 shadow-2xl w-80 text-center z-40 space-y-4">
+            <div class="text-5xl">💀</div>
+            <h2 class="text-xl font-black text-rose-500">คุณพ่ายแพ้ในศึก!</h2>
+            <p class="text-xs text-slate-300">ตัวละครหมดสติ กรุณาเลือกวิธีชุบชีวิต:</p>
+            <div class="flex flex-col gap-2 pt-1">
+                <button onclick="respawnHere()" class="w-full py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-xs shadow border border-amber-300">✨ ชุบชีวิตจุดนี้ (ใช้ 100 Gold)</button>
+                <button onclick="respawnTown()" class="w-full py-2.5 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-xl text-xs border border-slate-500">🏠 กลับจุดเกิดเมืองหลวง (ฟรี)</button>
+            </div>
+        </div>
+
+        <!-- D-Pad ควบคุมทิศทาง -->
+        <div class="absolute bottom-4 left-4 grid grid-cols-3 gap-1 w-36 h-36 bg-slate-900/50 backdrop-blur p-1.5 rounded-3xl border border-slate-700/50 z-10">
+            <div></div>
+            <button onpointerdown="setMove('up')" onpointerup="clearMove()" onpointerleave="clearMove()" class="bg-slate-800/80 active:bg-indigo-600 text-white rounded-2xl font-bold flex items-center justify-center text-xl shadow">▲</button>
+            <div></div>
+            <button onpointerdown="setMove('left')" onpointerup="clearMove()" onpointerleave="clearMove()" class="bg-slate-800/80 active:bg-indigo-600 text-white rounded-2xl font-bold flex items-center justify-center text-xl shadow">◄</button>
+            <div class="bg-slate-800/30 rounded-xl"></div>
+            <button onpointerdown="setMove('right')" onpointerup="clearMove()" onpointerleave="clearMove()" class="bg-slate-800/80 active:bg-indigo-600 text-white rounded-2xl font-bold flex items-center justify-center text-xl shadow">►</button>
+            <div></div>
+            <button onpointerdown="setMove('down')" onpointerup="clearMove()" onpointerleave="clearMove()" class="bg-slate-800/80 active:bg-indigo-600 text-white rounded-2xl font-bold flex items-center justify-center text-xl shadow">▼</button>
+            <div></div>
+        </div>
+
+        <!-- ปุ่มแอ็กชันขวาล่าง -->
+        <div class="absolute bottom-4 right-4 grid grid-cols-2 gap-2 w-40 z-10">
+            <button onclick="triggerAttack()" class="bg-rose-600/90 active:bg-rose-700 text-white p-3 rounded-2xl font-bold shadow border border-rose-400/40 text-xs">⚔️ ฟัน</button>
+            <button onclick="triggerSkill()" class="bg-purple-600/90 active:bg-purple-700 text-white p-3 rounded-2xl font-bold shadow border border-purple-400/40 text-xs">✨ สกิล</button>
+            <button onclick="toggleRun()" id="runBtn" class="bg-amber-600/90 active:bg-amber-700 text-white p-2.5 rounded-2xl font-bold shadow border border-amber-400/40 text-xs">🏃 วิ่ง</button>
+            <button onclick="toggleBag()" class="bg-cyan-600/90 active:bg-cyan-700 text-white p-2.5 rounded-2xl font-bold shadow border border-cyan-400/40 text-xs">🎒 ไอเทม</button>
+        </div>
+
+        <!-- Pop-up NPC -->
+        <div id="interactionModal" class="hidden absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-slate-900/95 backdrop-blur-md p-5 rounded-3xl border-2 border-indigo-500 shadow-2xl w-80 text-center z-30 space-y-3 max-h-[85vh] overflow-y-auto">
+            <h3 id="interactTitle" class="text-base font-black text-amber-400">NPC Dialog</h3>
+            <p id="interactDesc" class="text-xs text-slate-300">รายละเอียด...</p>
+            <div id="interactButtons" class="flex flex-col gap-2 pt-2"></div>
+            <button onclick="closeInteractionModal()" class="text-xs text-slate-500 hover:text-white pt-1">ปิดหน้าต่าง</button>
+        </div>
+
+        <!-- Pop-up เมนูเมื่อคลิกผู้เล่นอื่น -->
+        <div id="playerMenuModal" class="hidden absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-slate-900/95 backdrop-blur-md p-5 rounded-3xl border-2 border-cyan-500 shadow-2xl w-72 text-center z-30 space-y-3">
+            <h3 id="targetPlayerName" class="text-base font-black text-cyan-400">👤 ชื่อผู้เล่น</h3>
+            <p class="text-xs text-slate-300">เลือกทำรายการกับผู้เล่นนี้:</p>
+            <div class="flex flex-col gap-2 pt-1">
+                <button onclick="openTradeWindow()" class="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs shadow">🤝 ขอแลกเปลี่ยนไอเทม (Trade)</button>
+                <button onclick="addFriend()" class="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs shadow">➕ เพิ่มเพื่อน (Add Friend)</button>
+                <button onclick="openWhisperBox()" class="w-full py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs shadow">💬 กระซิบส่วนตัว (Whisper)</button>
+            </div>
+            <button onclick="closePlayerMenu()" class="text-xs text-slate-500 hover:text-white pt-1">ปิดหน้าต่าง</button>
+        </div>
+
+        <!-- หน้าต่างกระซิบส่วนตัว -->
+        <div id="whisperModal" class="hidden absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-slate-900 p-4 rounded-2xl border border-purple-500 w-80 z-50 space-y-3 shadow-2xl">
+            <div class="flex justify-between items-center border-b border-slate-700 pb-1">
+                <span id="whisperTitle" class="text-xs font-bold text-purple-400">💬 กระซิบหา: -</span>
+                <button onclick="document.getElementById('whisperModal').classList.add('hidden')" class="text-slate-400 hover:text-white text-xs">✕</button>
+            </div>
+            <div id="whisperMessages" class="h-32 bg-slate-950 p-2 rounded-xl overflow-y-auto space-y-1 text-[11px] text-slate-200">
+                <div class="text-slate-500 italic">เริ่มส่งข้อความส่วนตัว...</div>
+            </div>
+            <div class="flex gap-1">
+                <input type="text" id="whisperInput" placeholder="พิมพ์ข้อความกระซิบ..." class="flex-1 bg-slate-800 border border-slate-700 px-2 py-1.5 rounded-lg text-xs text-white focus:outline-none focus:border-purple-500" onkeydown="if(event.key==='Enter') sendWhisperMsg()">
+                <button onclick="sendWhisperMsg()" class="bg-purple-600 hover:bg-purple-500 px-3 py-1.5 rounded-lg text-xs font-bold text-white">ส่ง</button>
+            </div>
+        </div>
+
+        <!-- หน้าต่างแลกเปลี่ยนไอเทม & เงิน -->
+        <div id="tradeModal" class="hidden absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-slate-900/95 backdrop-blur-md p-5 rounded-3xl border-2 border-emerald-500 shadow-2xl w-96 text-center z-40 space-y-3">
+            <h3 class="text-base font-black text-emerald-400">🤝 หน้าต่างแลกเปลี่ยนไอเทม & เงิน</h3>
+            <p class="text-xs text-slate-300" id="tradeTargetTitle">แลกเปลี่ยนกับ: -</p>
+            
+            <div class="grid grid-cols-2 gap-2 text-left text-xs">
+                <div class="bg-slate-800 p-2.5 rounded-xl border border-slate-700 space-y-2">
+                    <p class="font-bold text-amber-400">ไอเทมของคุณ</p>
+                    <div id="myTradeItem" class="h-12 flex items-center justify-center bg-slate-900 rounded-lg text-slate-400 border border-dashed border-slate-700 cursor-pointer text-[11px]" onclick="openSelectTradeItemModal()">คลิกเลือกไอเทม</div>
+                    <div>
+                        <span class="text-[10px] text-slate-400">จำนวน: <span id="tradeQtyText" class="text-white font-bold">1</span></span>
+                        <input type="range" id="tradeQtyRange" min="1" max="1" value="1" class="w-full accent-amber-500 h-1 bg-slate-700 rounded-lg" oninput="updateTradeQty(this.value)">
+                    </div>
+                    <div>
+                        <span class="text-[10px] text-slate-400">เสนอเงิน Gold:</span>
+                        <input type="number" id="myTradeGoldInput" value="0" min="0" class="w-full bg-slate-900 border border-slate-700 px-2 py-1 rounded-lg text-xs text-yellow-400 font-bold focus:outline-none">
+                    </div>
+                </div>
+
+                <div class="bg-slate-800 p-2.5 rounded-xl border border-slate-700 space-y-2">
+                    <p class="font-bold text-indigo-400">ไอเทมของเพื่อน</p>
+                    <div class="h-12 flex items-center justify-center bg-slate-900 rounded-lg text-slate-300 border border-slate-700 text-[11px]">🧪 ยา HP x2</div>
+                    <div class="text-[10px] text-slate-400 pt-3">เสนอเงิน: <span class="text-yellow-400 font-bold">500 G</span></div>
+                </div>
+            </div>
+
+            <div class="flex gap-2 pt-2">
+                <button onclick="confirmTrade()" class="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs shadow">✔️ ยืนยันแลกเปลี่ยน</button>
+                <button onclick="closeTradeWindow()" class="flex-1 py-2 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-xl text-xs">❌ ยกเลิก</button>
+            </div>
+        </div>
+
+        <!-- หน้าต่างเลือกไอเทมที่จะเทรด -->
+        <div id="selectTradeItemModal" class="hidden absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-slate-900 p-4 rounded-2xl border border-amber-500 w-80 max-h-[70vh] flex flex-col z-50">
+            <h3 class="text-sm font-bold text-amber-400 mb-2">📦 เลือกไอเทมในกระเป๋า</h3>
+            <div id="tradeItemListContainer" class="flex-1 overflow-y-auto space-y-1.5 text-xs text-slate-200"></div>
+            <button onclick="document.getElementById('selectTradeItemModal').classList.add('hidden')" class="mt-2 py-1.5 bg-slate-700 rounded-xl text-xs font-bold">ปิด</button>
+        </div>
+
+        <!-- หน้าต่างดูรายการตู้กาชาและ % อัตราดรอป -->
+        <div id="gachaRatesModal" class="hidden absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-slate-900 p-5 rounded-3xl border-2 border-amber-500 w-80 max-h-[85vh] flex flex-col z-50 shadow-2xl">
+            <h3 class="text-base font-black text-amber-400 mb-2">🎰 รายการไอเทม & เรท % กาชา</h3>
+            <div class="flex-1 overflow-y-auto space-y-2 text-xs text-slate-300 pr-1">
+                <div class="bg-slate-800 p-2 rounded-xl border border-amber-500/40">
+                    <div class="font-bold text-amber-400">🟡 ดาบมหาเทพ / คทาจอมเวท UR</div>
+                    <div class="text-[10px] text-slate-400">อัตราดรอป: <span class="text-amber-300 font-bold">0.1%</span></div>
+                </div>
+                <div class="bg-slate-800 p-2 rounded-xl border border-purple-500/40">
+                    <div class="font-bold text-purple-400">🟣 เกราะมังกรเพลิง / ธนูสายฟ้า SSR</div>
+                    <div class="text-[10px] text-slate-400">อัตราดรอป: <span class="text-purple-300 font-bold">1.0%</span></div>
+                </div>
+                <div class="bg-slate-800 p-2 rounded-xl border border-indigo-500/40">
+                    <div class="font-bold text-indigo-400">🔵 แหวนจอมเวท / รองเท้าความเร็ว SR</div>
+                    <div class="text-[10px] text-slate-400">อัตราดรอป: <span class="text-indigo-300 font-bold">10.0%</span></div>
+                </div>
+                <div class="bg-slate-800 p-2 rounded-xl border border-slate-700">
+                    <div class="font-bold text-slate-300">⚪ ยาฟื้นพลัง HP / SP (ทั่วไป)</div>
+                    <div class="text-[10px] text-slate-400">อัตราดรอป: <span class="text-slate-200 font-bold">88.9%</span></div>
+                </div>
+            </div>
+            <button onclick="document.getElementById('gachaRatesModal').classList.add('hidden')" class="mt-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-xl text-xs font-bold text-white">ปิดหน้าต่าง</button>
+        </div>
+    </div>
+
+    <!-- หน้าต่างกระเป๋า -->
+    <div id="bagModal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+        <div class="bg-slate-800 p-4 rounded-2xl border border-slate-600 w-96 max-h-[85vh] flex flex-col shadow-2xl">
+            <h2 class="text-base font-bold text-amber-400 mb-2 flex justify-between items-center">
+                <span>🎒 ช่องเก็บของ & อุปกรณ์</span>
+                <button onclick="toggleBag()" class="text-slate-400 hover:text-white">✕</button>
+            </h2>
+            <div class="grid grid-cols-3 gap-1 mb-2">
+                <button id="tabEquipBtn" onclick="switchBagTab('equip')" class="py-1.5 bg-indigo-600 text-white font-bold rounded-xl text-[11px]">⚔️ อุปกรณ์</button>
+                <button id="tabPotionBtn" onclick="switchBagTab('potion')" class="py-1.5 bg-slate-700 text-slate-300 font-bold rounded-xl text-[11px]">🧪 ยา</button>
+                <button id="tabOtherBtn" onclick="switchBagTab('other')" class="py-1.5 bg-slate-700 text-slate-300 font-bold rounded-xl text-[11px]">📦 อื่นๆ/ขยะ</button>
+            </div>
+            
+            <div id="bagItemList" class="flex-1 overflow-y-auto space-y-2 my-2 text-sm text-slate-300 pr-1">
+                <p class="text-slate-500 text-center py-4">ไม่มีไอเทมในหมวดนี้</p>
+            </div>
+
+            <button onclick="toggleBag()" class="w-full py-2 bg-slate-700 hover:bg-slate-600 rounded-xl text-xs font-bold text-white mt-1">ปิดกระเป๋า</button>
+        </div>
+    </div>
+
+    <!-- Codex Modal -->
+    <div id="codexModal" class="hidden fixed inset-0 bg-black/90 flex items-center justify-center z-40 p-3">
+        <div class="bg-slate-900 p-4 rounded-2xl border border-indigo-500 w-full max-w-2xl max-h-[90vh] flex flex-col">
+            <div class="flex justify-between items-center mb-3">
+                <h2 class="text-lg font-black text-indigo-300">📚 MET Asset Codex</h2>
+                <button onclick="toggleCodex()" class="text-slate-400 hover:text-white">✕</button>
+            </div>
+            <div id="codexList" class="overflow-y-auto space-y-3 text-xs flex-1"></div>
+            <button onclick="toggleCodex()" class="mt-3 w-full py-2 bg-slate-700 rounded-xl text-xs font-bold">ปิด</button>
+        </div>
+    </div>
+
+    <!-- หน้าต่างคำสั่ง GM Panel -->
+    <div id="gmModal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+        <div class="bg-slate-900 p-4 rounded-2xl border-2 border-amber-500/50 w-80 max-h-[90vh] flex flex-col shadow-2xl">
+            <h2 class="text-lg font-bold text-amber-400 mb-3 flex justify-between items-center border-b border-slate-700 pb-2">
+                <span>👑 MET GM Panel</span>
+                <button onclick="toggleGMModal()" class="text-slate-400 hover:text-white">✕</button>
+            </h2>
+            <div class="space-y-3 overflow-y-auto flex-1 pr-1 text-xs">
+                <div class="bg-slate-800 p-2.5 rounded-xl border border-slate-700 space-y-2">
+                    <p class="font-bold text-rose-400">🚧 สถานะเซิร์ฟเวอร์</p>
+                    <button onclick="toggleMaintenance()" id="maintBtn" class="w-full py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl text-xs">เปิดโหมดปิดปรับปรุงเซิร์ฟเวอร์</button>
+                </div>
+
+                <div class="bg-slate-800 p-2.5 rounded-xl border border-slate-700 space-y-2">
+                    <p class="font-bold text-indigo-400">👥 ผู้เล่นในเซิร์ฟเวอร์ (<span id="onlineCount">1</span>)</p>
+                    <div id="onlinePlayersList" class="space-y-2 max-h-36 overflow-y-auto pr-1">
+                        <div class="bg-slate-900 p-2 rounded-xl border border-slate-700 space-y-1.5">
+                            <div class="flex justify-between items-center text-[11px] font-bold text-slate-200">
+                                <span>👤 Hero_Pro99 (Lv.12)</span>
+                            </div>
+                            <div class="grid grid-cols-3 gap-1">
+                                <button onclick="gmTeleportToPlayer('Hero_Pro99')" class="bg-indigo-600 hover:bg-indigo-500 text-white py-1 rounded text-[10px]">วาปหา</button>
+                                <button onclick="gmPullPlayer('Hero_Pro99')" class="bg-emerald-600 hover:bg-emerald-500 text-white py-1 rounded text-[10px]">ดึงตัว</button>
+                                <button onclick="gmSpawnItemForPlayer('Hero_Pro99')" class="bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold py-1 rounded text-[10px]">🎁 เสกของ</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-slate-800 p-2.5 rounded-xl border border-slate-700 space-y-2">
+                    <p class="font-bold text-cyan-400">🎁 เสกไอเทมจัดกิจกรรม (เข้าตัวเรา)</p>
+                    <div class="grid grid-cols-1 gap-1.5">
+                        <button onclick="gmSpawnSpecificItem('ITM-WPN-UR-001')" class="bg-cyan-700 hover:bg-cyan-600 text-white py-1.5 rounded-lg font-bold shadow">🟡 เสก: ดาบมหาเทพ UR</button>
+                        <button onclick="gmSpawnSpecificItem('ITM-ARM-SSR-001')" class="bg-cyan-700 hover:bg-cyan-600 text-white py-1.5 rounded-lg font-bold shadow">🟣 เสก: เกราะมังกร SSR</button>
+                    </div>
+                </div>
+
+                <div class="bg-slate-800 p-2.5 rounded-xl border border-slate-700">
+                    <p class="font-bold text-yellow-400 mb-1.5">💰 เสกเงิน Gold</p>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button onclick="gmAddGold(1000)" class="bg-yellow-600 text-white py-1.5 rounded-lg font-bold">+1,000G</button>
+                        <button onclick="gmAddGold(50000)" class="bg-amber-600 text-white py-1.5 rounded-lg font-bold">+50,000G</button>
+                    </div>
+                </div>
+                <div class="bg-slate-800 p-2.5 rounded-xl border border-slate-700">
+                    <p class="font-bold text-rose-400 mb-1.5">❤️ พลัง & อมตะ</p>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button onclick="gmHealFull()" class="bg-emerald-600 text-white py-1.5 rounded-lg font-bold">💊 ฮีลเต็ม</button>
+                        <button onclick="gmToggleGodMode()" id="godBtn" class="bg-purple-600 text-white py-1.5 rounded-lg font-bold">🛡️ อมตะ</button>
+                    </div>
+                </div>
+            </div>
+            <button onclick="toggleGMModal()" class="w-full mt-3 py-2 bg-slate-700 rounded-xl text-xs font-bold text-white">ปิดหน้าต่าง</button>
+        </div>
+    </div>
+
+    <!-- Game Logic Script -->
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+
+        const mapConfig = { width: 2400, height: 1600 };
+        let camera = { x: 0, y: 0, width: window.innerWidth, height: window.innerHeight };
+        let isMaintenance = false;
+        let isProfileMinimized = false;
+        let isChatMinimized = false;
+
+        const keys = {};
+        window.addEventListener('keydown', (e) => { keys[e.code] = true; });
+        window.addEventListener('keyup', (e) => { keys[e.code] = false; });
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            camera.width = canvas.width;
+            camera.height = canvas.height;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) { document.documentElement.requestFullscreen().catch(()=>{}); }
+            else { document.exitFullscreen().catch(()=>{}); }
+        }
+
+        function toggleProfileMinimize() {
+            isProfileMinimized = !isProfileMinimized;
+            document.getElementById("profileBox").classList.toggle("hidden", isProfileMinimized);
+            document.getElementById("profileToggleBtn").innerText = isProfileMinimized ? "▼ โปรไฟล์" : "▲ โปรไฟล์";
+        }
+
+        function toggleChatMinimize() {
+            isChatMinimized = !isChatMinimized;
+            document.getElementById("permanentChat").classList.toggle("hidden", isChatMinimized);
+            document.getElementById("chatToggleBtn").innerText = isChatMinimized ? "▼ ช่องแชท" : "▲ ช่องแชท";
+        }
+
+        let soundEnabled = true;
+        let audioCtx = null;
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        function playSound(type) {
+            if (!soundEnabled) return;
+            initAudio();
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            let now = audioCtx.currentTime;
+            if (type === 'hit') {
+                osc.type = 'square'; osc.frequency.setValueAtTime(180, now); osc.frequency.exponentialRampToValueAtTime(40, now + 0.1);
+                gain.gain.setValueAtTime(0.15, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+                osc.start(now); osc.stop(now + 0.1);
+            } else if (type === 'coin') {
+                osc.type = 'triangle'; osc.frequency.setValueAtTime(600, now); osc.frequency.setValueAtTime(900, now + 0.08);
+                gain.gain.setValueAtTime(0.15, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+                osc.start(now); osc.stop(now + 0.2);
+            }
+        }
+        function toggleSound() {
+            soundEnabled = !soundEnabled;
+            document.getElementById("soundToggleBtn").innerText = soundEnabled ? "🔊" : "🔇";
+        }
+
+        let currentMap = "town";
+        let moveDir = "";
+        let targetPos = null;
+        let isBagOpen = false;
+        let activeBagTab = "equip";
+        let selectedTargetPlayer = null;
+        let tradingItem = null;
+        let tradingQty = 1;
+
+        let player = {
+            x: 1150, y: 800, width: 36, height: 50, speed: 3.5,
+            state: "idle", facing: "right", direction: "right", isMoving: false, animTimer: 0, isRunning: false,
+            level: 1, exp: 0, maxExp: 100, hp: 100, maxHp: 100, sp: 50, maxSp: 50,
+            gold: 10000, jobClass: "swordsman", spriteId: "HERO-SWORD-001", weaponLevel: 0,
+            statPoints: 5, skillPoints: 3,
+            stats: { str: 10, agi: 5, vit: 10, int: 5 },
+            skills: { slash: 1, storm: 1 },
+            equippedSlots: { weapon: "ITM-WPN-START-001", armor: null, boots: null, accessory: null },
+            inventory: [
+                { id: "ITM-WPN-START-001", name: "ดาบเริ่มต้น", icon: "⚔️", type: "equip", quantity: 1, description: "อาวุธเริ่มต้น" },
+                { id: "ITM-POT-HP-001", name: "ยา HP", icon: "🧪", type: "potion", quantity: 5, description: "ฟื้นฟู HP" },
+                { id: "ITM-JUNK-001", name: "เศษเยลลี่สไลม์", icon: "🟢", type: "other", quantity: 3, description: "ขยะมอนสเตอร์" }
+            ],
+            isGodMode: false, isGM: true, isDead: false
+        };
+
+        let simulatedPlayers = [
+            { name: "Hero_Pro99", level: 12, map: "town", x: 1250, y: 750, width: 36, height: 50, speed: 1.5, moveTimer: 0, facing: "left", spriteId: "HERO-MAGE-001" }
+        ];
+
+        const decors = {
+            town: [
+                { id: "castle", x: 1100, y: 300, w: 220, h: 160, type: "building", label: "🏰 ปราสาท MET" },
+                { id: "gacha", x: 950, y: 780, w: 50, h: 60, type: "gacha", label: "🎰 ตู้สุ่มกาชา" },
+                { id: "class_npc", x: 1350, y: 780, w: 40, h: 50, type: "npc", name: "อาจารย์เปลี่ยนอาชีพ", label: "🧙‍♂️ เปลี่ยนอาชีพ" },
+                { id: "test_npc", x: 700, y: 780, w: 40, h: 50, type: "npc", name: "ผู้ทดสอบระบบ", label: "🧪 NPC ทดสอบ" }
+            ],
+            forest: [{ id: "tree1", x: 300, y: 200, w: 70, h: 90, type: "tree", label: "🌲 ป่าลึก" }],
+            volcano: [{ id: "rock1", x: 500, y: 400, w: 80, h: 80, type: "tree", label: "🌋 ภูเขาไฟ" }]
+        };
+
+        const portals = {
+            town: [{ x: 2300, y: 800, radius: 50, targetMap: "forest", targetX: 150, targetY: 800, label: "🌀 ไปป่า (Lv.1-5)" }],
+            forest: [
+                { x: 100, y: 800, radius: 50, targetMap: "town", targetX: 2200, targetY: 800, label: "🌀 กลับเมือง" },
+                { x: 2300, y: 800, radius: 50, targetMap: "volcano", targetX: 150, targetY: 800, label: "🌋 ไปภูเขาไฟ (Lv.6+)" }
+            ],
+            volcano: [{ x: 100, y: 800, radius: 50, targetMap: "forest", targetX: 2200, targetY: 800, label: "🌀 กลับป่า" }]
+        };
+
+        let monsters = {
+            town: [],
+            forest: [
+                { id: "M1", x: 500, y: 350, w: 44, h: 44, hp: 350, maxHp: 350, color: "#4ade80", name: "สไลม์เขียว (Lv.2)", spriteId: "MON-SLIME-001", alive: true, exp: 35, atk: 8, speed: 1.2, moveTimer: 0, dir: 1, diedAt: 0 },
+                { id: "M2", x: 800, y: 450, w: 44, h: 44, hp: 350, maxHp: 350, color: "#4ade80", name: "สไลม์เขียว (Lv.2)", spriteId: "MON-SLIME-001", alive: true, exp: 35, atk: 8, speed: 1.2, moveTimer: 0, dir: -1, diedAt: 0 }
+            ],
+            volcano: [
+                { id: "M3", x: 600, y: 500, w: 62, h: 62, hp: 1500, maxHp: 1500, color: "#ea580c", name: "โกเลมลาวา (Lv.8)", spriteId: "MON-LAVA-GOLEM-001", alive: true, exp: 200, atk: 25, speed: 0.8, moveTimer: 0, dir: 1, diedAt: 0 }
+            ]
+        };
+
+        let groundDrops = [];
+        let damageTexts = [];
+        let activeEffects = [];
+        let gameLoopStarted = false;
+
+        function svgData(svg) { return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg.trim()); }
+        function heroSVG(main, trim, weapon, hood=false) {
+            return `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><ellipse cx="32" cy="58" rx="19" ry="4" fill="#020617" opacity=".35"/><path d="M18 31 Q12 39 15 53 L24 55 L27 40 L37 40 L40 55 L50 53 Q52 39 46 31Z" fill="${main}" stroke="#111827" stroke-width="2"/><path d="M22 17 Q32 7 42 17 L44 31 Q32 39 20 31Z" fill="#f1c7a5" stroke="#422d2a" stroke-width="2"/><path d="${hood ? 'M17 20 Q17 3 32 5 Q49 4 47 23 L42 20 L40 13 Q31 18 22 14 L21 23Z' : 'M20 18 Q25 7 39 11 L45 20 L42 24 Q31 17 22 24Z'}" fill="${trim}" stroke="#111827" stroke-width="2"/><circle cx="27" cy="25" r="2" fill="#111827"/><circle cx="37" cy="25" r="2" fill="#111827"/><path d="M48 43 L58 14" stroke="${weapon}" stroke-width="4" stroke-linecap="round"/></svg>`;
+        }
+        function monsterSVG(main) { return `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><path d="M8 48 Q8 20 32 18 Q56 20 56 48 Q50 57 32 57 Q14 57 8 48Z" fill="${main}" stroke="#14532d" stroke-width="2"/></svg>`; }
+
+        const SPRITE_SOURCES = {
+            "HERO-SWORD-001": svgData(heroSVG("#2563eb", "#fbbf24", "#e2e8f0")),
+            "HERO-MAGE-001": svgData(heroSVG("#7c3aed", "#c4b5fd", "#a78bfa", true)),
+            "HERO-ARCHER-001": svgData(heroSVG("#15803d", "#86efac", "#d6b56d")),
+            "MON-SLIME-001": svgData(monsterSVG("#4ade80")),
+            "MON-LAVA-GOLEM-001": svgData(monsterSVG("#ea580c")),
+            "ITEM-SWORD-001": svgData(heroSVG("#94a3b8", "#38bdf8", "#fff"))
+        };
+
+        const SPRITE_IMAGES = {};
+        Object.entries(SPRITE_SOURCES).forEach(([id, src]) => {
+            const img = new Image(); img.src = src; SPRITE_IMAGES[id] = img;
+        });
+
+        const ITEM_CATALOG = {
+            "ITM-WPN-START-001": { name: "ดาบเริ่มต้น", icon: "⚔️", type: "equip", description: "โจมตี +5" },
+            "ITM-WPN-UR-001": { name: "ดาบมหาเทพ UR", icon: "⚔️", type: "equip", description: "โจมตี +50" },
+            "ITM-WPN-UR-002": { name: "คทาจอมเวทสุริยะ UR", icon: "🪄", type: "equip", description: "เวทมนตร์ +60" },
+            "ITM-ARM-SSR-001": { name: "เกราะมังกรเพลิง SSR", icon: "🛡️", type: "equip", description: "ป้องกัน +30" },
+            "ITM-ARM-SSR-002": { name: "ธนูเทพสายฟ้า SSR", icon: "🏹", type: "equip", description: "โจมตีไกล +45" },
+            "ITM-RNG-SR-001": { name: "แหวนจอมเวท SR", icon: "💍", type: "equip", description: "มานา +50" },
+            "ITM-RNG-SR-002": { name: "รองเท้าความเร็ว SR", icon: "👟", type: "equip", description: "ความเร็ว +20" },
+            "ITM-POT-HP-001": { name: "ยา HP", icon: "🧪", type: "potion", description: "ฟื้น HP 50" },
+            "ITM-POT-SP-001": { name: "ยา SP", icon: "💧", type: "potion", description: "ฟื้น SP 30" },
+            "ITM-JUNK-001": { name: "เศษเยลลี่สไลม์", icon: "🟢", type: "other", description: "ขยะมอนสเตอร์" }
+        };
+
+        function getHeroSpriteId() {
+            return ({ swordsman:"HERO-SWORD-001", mage:"HERO-MAGE-001", archer:"HERO-ARCHER-001" })[player.jobClass] || "HERO-SWORD-001";
+        }
+
+        function drawSprite(spriteId, x, y, w, h, flip=false) {
+            const img = SPRITE_IMAGES[spriteId];
+            if (!img || !img.complete) return false;
+            ctx.save();
+            if (flip) { ctx.translate(x + w, y); ctx.scale(-1, 1); ctx.drawImage(img, 0, 0, w, h); }
+            else ctx.drawImage(img, x, y, w, h);
+            ctx.restore();
+            return true;
+        }
+
+        function syncHUD() {
+            document.getElementById("goldText").innerText = `🪙 ${player.gold}G`;
+            document.getElementById("hpText").innerText = `HP ${Math.floor(player.hp)}/${player.maxHp}`;
+            document.getElementById("hpBar").style.width = `${Math.max(0, Math.min(100, (player.hp / player.maxHp) * 100))}%`;
+            document.getElementById("spBar").style.width = `${Math.max(0, Math.min(100, (player.sp / player.maxSp) * 100))}%`;
+            document.getElementById("expBar").style.width = `${Math.max(0, Math.min(100, (player.exp / player.maxExp) * 100))}%`;
+            document.getElementById("profileLvBadge").innerText = `Lv.${player.level}`;
+            document.getElementById("mapNameText").innerText = currentMap === "town" ? "เมืองหลวง" : currentMap === "forest" ? "ป่ามอนสเตอร์" : "ภูเขาไฟ";
+            
+            let icon = "⚔️";
+            if (player.jobClass === "mage") icon = "🪄";
+            else if (player.jobClass === "archer") icon = "🏹";
+            document.getElementById("profileClassIcon").innerText = icon;
+
+            const profileBox = document.getElementById("profileBox");
+            const avatarRing = document.getElementById("profileAvatarRing");
+            if (player.isGM) {
+                profileBox.classList.add("gm-profile-crown");
+                avatarRing.style.borderColor = "#f59e0b";
+            } else {
+                profileBox.classList.remove("gm-profile-crown");
+                avatarRing.style.borderColor = "#6366f1";
+            }
+        }
+
+        function toggleStatsModal() {
+            const modal = document.getElementById("statsModal");
+            modal.classList.toggle("hidden");
+            if (!modal.classList.contains("hidden")) {
+                document.getElementById("statPointsText").innerText = `${player.statPoints} แต้ม`;
+                document.getElementById("strVal").innerText = player.stats.str;
+                document.getElementById("agiVal").innerText = player.stats.agi;
+                document.getElementById("vitVal").innerText = player.stats.vit;
+                document.getElementById("intVal").innerText = player.stats.int;
+            }
+        }
+
+        function allocateStat(type) {
+            if (player.statPoints <= 0) { alert("แต้มสเตตัสหมดแล้ว!"); return; }
+            player.statPoints--;
+            player.stats[type]++;
+            if (type === 'vit') { player.maxHp += 20; player.hp = player.maxHp; }
+            if (type === 'int') { player.maxSp += 15; player.sp = player.maxSp; }
+            toggleStatsModal(); toggleStatsModal(); syncHUD();
+        }
+
+        function toggleSkillModal() {
+            const modal = document.getElementById("skillModal");
+            modal.classList.toggle("hidden");
+            if (!modal.classList.contains("hidden")) {
+                document.getElementById("skillPointsText").innerText = `${player.skillPoints} แต้ม`;
+                document.getElementById("skill1Lvl").innerText = `Lv.${player.skills.slash}`;
+                document.getElementById("skill2Lvl").innerText = `Lv.${player.skills.storm}`;
+            }
+        }
+
+        function upgradeSkill(id) {
+            if (player.skillPoints <= 0) { alert("แต้มสกิลหมดแล้ว!"); return; }
+            player.skillPoints--;
+            if (id === 1) player.skills.slash++;
+            if (id === 2) player.skills.storm++;
+            toggleSkillModal(); toggleSkillModal();
+            alert("✨ อัปเกรดสกิลสำเร็จ!");
+        }
+
+        function toggleBag() {
+            isBagOpen = !isBagOpen;
+            const bagModal = document.getElementById("bagModal");
+            bagModal.classList.toggle("hidden", !isBagOpen);
+            if (isBagOpen) { switchBagTab('equip'); }
+        }
+
+        function toggleGMModal() {
+            const gmModal = document.getElementById("gmModal");
+            gmModal.classList.toggle("hidden");
+        }
+
+        canvas.addEventListener('click', (e) => {
+            if (player.isDead) return;
+            const rect = canvas.getBoundingClientRect();
+            const clickX = e.clientX - rect.left + camera.x;
+            const clickY = e.clientY - rect.top + camera.y;
+
+            let clickedPlayer = null;
+            simulatedPlayers.forEach(sp => {
+                if (sp.map === currentMap && clickX >= sp.x && clickX <= sp.x + sp.width && clickY >= sp.y && clickY <= sp.y + sp.height) {
+                    clickedPlayer = sp;
+                }
+            });
+
+            if (clickedPlayer) {
+                selectedTargetPlayer = clickedPlayer;
+                document.getElementById("targetPlayerName").innerText = `👤 ${clickedPlayer.name} (Lv.${clickedPlayer.level})`;
+                document.getElementById("playerMenuModal").classList.remove("hidden");
+                return;
+            }
+
+            let clickedNPC = false;
+            decors[currentMap].forEach(obj => {
+                if (clickX >= obj.x && clickX <= obj.x + obj.w && clickY >= obj.y && clickY <= obj.y + obj.h) {
+                    clickedNPC = true;
+                    openNPCInteraction(obj);
+                }
+            });
+            if (!clickedNPC) { targetPos = { x: clickX - player.width/2, y: clickY - player.height/2 }; moveDir = ""; }
+        });
+
+        function closePlayerMenu() { document.getElementById("playerMenuModal").classList.add("hidden"); }
+
+        function addFriend() {
+            if (selectedTargetPlayer) {
+                alert(`🤝 ส่งคำขอเป็นเพื่อนไปยัง ${selectedTargetPlayer.name} สำเร็จ!`);
+                closePlayerMenu();
+            }
+        }
+
+        function openWhisperBox() {
+            if (selectedTargetPlayer) {
+                document.getElementById("whisperTitle").innerText = `💬 กระซิบหา: ${selectedTargetPlayer.name}`;
+                document.getElementById("whisperModal").classList.remove("hidden");
+                closePlayerMenu();
+            }
+        }
+
+        function sendWhisperMsg() {
+            const input = document.getElementById("whisperInput");
+            const msg = input.value.trim();
+            if (!msg) return;
+            const box = document.getElementById("whisperMessages");
+            box.innerHTML += `<div><b>คุณ (กระซิบ):</b> ${msg}</div>`;
+            input.value = "";
+            box.scrollTop = box.scrollHeight;
+
+            setTimeout(() => {
+                box.innerHTML += `<div class="text-purple-300"><b>${selectedTargetPlayer ? selectedTargetPlayer.name : "เพื่อน"} (กระซิบกลับ):</b> ได้รับข้อความแล้วครับ!</div>`;
+                box.scrollTop = box.scrollHeight;
+            }, 1000);
+        }
+
+        function sendPermChat() {
+            const input = document.getElementById("permChatInput");
+            const msg = input.value.trim();
+            if (!msg) return;
+            const chatBox = document.getElementById("permChatMessages");
+            
+            if (player.isGM) {
+                chatBox.innerHTML += `<div class="text-amber-400 font-bold">👑 [GM] คุณ: <span class="text-amber-300">${msg}</span></div>`;
+            } else {
+                chatBox.innerHTML += `<div><b>คุณ:</b> ${msg}</div>`;
+            }
+            
+            input.value = "";
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        function openTradeWindow() {
+            if (selectedTargetPlayer) {
+                document.getElementById("tradeTargetTitle").innerText = `แลกเปลี่ยนกับ: ${selectedTargetPlayer.name}`;
+                document.getElementById("tradeModal").classList.remove("hidden");
+                closePlayerMenu();
+                tradingItem = null;
+                document.getElementById("myTradeItem").innerHTML = "คลิกเลือกไอเทม";
+                document.getElementById("myTradeGoldInput").value = 0;
+            }
+        }
+        function closeTradeWindow() { document.getElementById("tradeModal").classList.add("hidden"); tradingItem = null; }
+
+        function openSelectTradeItemModal() {
+            const container = document.getElementById("tradeItemListContainer");
+            container.innerHTML = player.inventory.map((item, idx) => `
+                <div onclick="selectThisTradeItem(${idx})" class="bg-slate-800 p-2 rounded-xl flex items-center justify-between cursor-pointer hover:bg-slate-700">
+                    <div>${item.icon} ${item.name}</div>
+                    <div class="text-[10px] text-slate-400">มีอยู่: ${item.quantity}</div>
+                </div>
+            `).join("");
+            document.getElementById("selectTradeItemModal").classList.remove("hidden");
+        }
+
+        function selectThisTradeItem(idx) {
+            tradingItem = player.inventory[idx];
+            document.getElementById("myTradeItem").innerHTML = `${tradingItem.icon} ${tradingItem.name}`;
+            const range = document.getElementById("tradeQtyRange");
+            range.max = tradingItem.quantity;
+            range.value = 1;
+            tradingQty = 1;
+            document.getElementById("tradeQtyText").innerText = 1;
+            document.getElementById("selectTradeItemModal").classList.add("hidden");
+        }
+
+        function updateTradeQty(val) {
+            tradingQty = parseInt(val);
+            document.getElementById("tradeQtyText").innerText = tradingQty;
+        }
+
+        function confirmTrade() {
+            if (!tradingItem) { alert("กรุณาเลือกไอเทมที่จะเทรด!"); return; }
+            let goldOffer = parseInt(document.getElementById("myTradeGoldInput").value) || 0;
+            if (player.gold < goldOffer) { alert("Gold ของคุณไม่พอเสนอแลกเปลี่ยน!"); return; }
+
+            player.gold -= goldOffer;
+            tradingItem.quantity -= tradingQty;
+            if (tradingItem.quantity <= 0) {
+                player.inventory = player.inventory.filter(i => i !== tradingItem);
+            }
+
+            syncHUD();
+            alert(`🎉 แลกเปลี่ยนสำเร็จ! คุณมอบ ${tradingItem.name} x${tradingQty} และ ${goldOffer}G ให้กับ ${selectedTargetPlayer.name}`);
+            closeTradeWindow();
+        }
+
+        function toggleMultiplayerMenu() { document.getElementById("multiplayerModal").classList.toggle("hidden"); }
+        function createRoom() { alert("สร้างห้องสำเร็จ: MET-999"); toggleMultiplayerMenu(); startGame(); }
+        function joinRoom() { alert("เข้าร่วมห้องแล้ว"); toggleMultiplayerMenu(); startGame(); }
+
+        function openNPCInteraction(obj) {
+            const modal = document.getElementById("interactionModal");
+            document.getElementById("interactTitle").innerText = obj.label;
+            document.getElementById("interactDesc").innerText = obj.id === "test_npc" ? "ทดสอบระบบจำลองผู้เล่นและเซิร์ฟเวอร์!" : "ยินดีต้อนรับสู่นักผจญภัย!";
+            let btns = document.getElementById("interactButtons");
+            btns.innerHTML = `<button onclick="closeInteractionModal()" class="bg-indigo-600 text-white py-2 rounded-xl text-xs font-bold">พูดคุยเสร็จสิ้น</button>`;
+            
+            if (obj.type === "gacha") {
+                btns.innerHTML = `
+                    <button onclick="gachaSpin(1); closeInteractionModal();" class="bg-amber-500 text-slate-950 font-bold py-2 rounded-xl text-xs shadow">🎰 สุ่ม 1 ครั้ง (20G)</button>
+                    <button onclick="gachaSpin(10); closeInteractionModal();" class="bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 font-extrabold py-2 rounded-xl text-xs shadow">🔥 สุ่ม 10 ครั้ง (200G)</button>
+                    <button onclick="document.getElementById('gachaRatesModal').classList.remove('hidden')" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 rounded-xl text-xs shadow">🔍 ดูรายการไอเทม & % เรทสุ่ม</button>
+                `;
+            } else if (obj.id === "class_npc") {
+                btns.innerHTML = `
+                    <button onclick="player.jobClass='swordsman'; syncHUD(); closeInteractionModal(); alert('เปลี่ยนเป็นนักดาบ');" class="bg-slate-800 text-rose-400 py-1.5 rounded-xl text-xs font-bold">⚔️ นักดาบ</button>
+                    <button onclick="player.jobClass='mage'; syncHUD(); closeInteractionModal(); alert('เปลี่ยนเป็นจอมเวท');" class="bg-slate-800 text-purple-400 py-1.5 rounded-xl text-xs font-bold">🪄 จอมเวท</button>
+                    <button onclick="player.jobClass='archer'; syncHUD(); closeInteractionModal(); alert('เปลี่ยนเป็นนักธนู');" class="bg-slate-800 text-emerald-400 py-1.5 rounded-xl text-xs font-bold">🏹 นักธนู</button>
+                `;
+            }
+            modal.classList.remove("hidden");
+        }
+        function closeInteractionModal() { document.getElementById("interactionModal").classList.add("hidden"); }
+
+        function triggerBroadcast(text) {
+            const banner = document.getElementById("broadcastBanner");
+            const bText = document.getElementById("broadcastText");
+            bText.innerText = text;
+            banner.classList.remove("hidden");
+            setTimeout(() => { banner.classList.add("hidden"); }, 8000);
+        }
+
+        function gachaSpin(times) {
+            let cost = times === 10 ? 200 : 20;
+            if (player.gold < cost) { alert("Gold ไม่พอสำหรับสุ่ม!"); return; }
+            player.gold -= cost; syncHUD(); playSound('coin');
+
+            let rewards = [];
+            let gotRare = false;
+            let rareItemName = "";
+
+            for (let i = 0; i < times; i++) {
+                let rand = Math.random() * 100;
+                let rewardItem;
+                if (rand < 0.1) {
+                    rewardItem = { ...ITEM_CATALOG["ITM-WPN-UR-001"], quantity: 1 };
+                    rewards.push("🟡 UR: ดาบมหาเทพ UR (0.1%)");
+                    gotRare = true; rareItemName = rewardItem.name;
+                } else if (rand < 1.0) {
+                    rewardItem = { ...ITEM_CATALOG["ITM-ARM-SSR-001"], quantity: 1 };
+                    rewards.push("🟣 SSR: เกราะมังกรเพลิง (1.0%)");
+                    gotRare = true; rareItemName = rewardItem.name;
+                } else if (rand < 11.0) {
+                    rewardItem = { ...ITEM_CATALOG["ITM-RNG-SR-001"], quantity: 1 };
+                    rewards.push("🔵 SR: แหวนจอมเวท (10.0%)");
+                } else {
+                    rewardItem = { ...ITEM_CATALOG["ITM-POT-HP-001"], quantity: 1 };
+                    rewards.push("⚪ R: ยา HP (88.9%)");
+                }
+                
+                let exist = player.inventory.find(i => i.id === rewardItem.id);
+                if (exist) exist.quantity += 1;
+                else player.inventory.push(rewardItem);
+            }
+
+            if (gotRare) {
+                triggerBroadcast(`🎉 ประกาศ: [คุณ] สุ่มได้ [🟡 ${rareItemName}] ระดับแรร์จากตู้กาชา!`);
+            }
+
+            alert(`🎰 ผลการสุ่มกาชา ${times} ครั้ง:\n\n` + rewards.join("\n"));
+        }
+
+        function startGame() {
+            if (isMaintenance && !player.isGM) { alert("🚧 เซิร์ฟเวอร์ปิดปรับปรุง!"); return; }
+            initAudio();
+            resizeCanvas();
+            document.getElementById("startScreen").classList.add("hidden");
+            document.getElementById("gameScreen").classList.remove("hidden");
+            document.getElementById("gameScreen").classList.add("flex");
+            syncHUD();
+            if (!gameLoopStarted) { gameLoopStarted = true; requestAnimationFrame(gameLoop); }
+        }
+
+        function setMove(dir) { if (player.isDead) return; targetPos = null; moveDir = dir; }
+        function clearMove() { moveDir = ""; }
+
+        function toggleRun() {
+            player.isRunning = !player.isRunning;
+            player.speed = player.isRunning ? 6 : 3.5;
+            document.getElementById("runBtn").innerText = player.isRunning ? "⚡ วิ่ง" : "🏃 วิ่ง";
+        }
+
+        function triggerAttack() {
+            if (player.isDead) return;
+            playSound('hit');
+            let pCenterX = player.x + player.width/2, pCenterY = player.y + player.height/2;
+            activeEffects.push({ x: pCenterX + (player.facing === "right" ? 30 : -30), y: pCenterY, type: "slash", duration: 12, maxDuration: 12 });
+
+            let totalAtk = 40 + (player.stats.str * 2);
+
+            monsters[currentMap].forEach(m => {
+                if (m.alive && Math.hypot(pCenterX - (m.x + m.w/2), pCenterY - (m.y + m.h/2)) < 70) {
+                    m.hp -= totalAtk;
+                    damageTexts.push({ x: m.x + 10, y: m.y - 15, text: `-${totalAtk}`, color: "#ffffff", opacity: 1, speedY: 1 });
+                    if (m.hp <= 0) {
+                        m.alive = false; m.diedAt = Date.now();
+                        let gGain = 30, eGain = m.exp;
+                        player.gold += gGain; player.exp += eGain;
+                        playSound('coin');
+                        damageTexts.push({ x: m.x, y: m.y - 30, text: `+${gGain}G +${eGain}EXP`, color: "#facc15", opacity: 1, speedY: 1.2 });
+                        if (player.exp >= player.maxExp) {
+                            player.level++; player.exp = 0; player.maxExp = Math.floor(player.maxExp * 1.4);
+                            player.maxHp += 25; player.hp = player.maxHp;
+                            player.statPoints += 3; player.skillPoints += 1;
+                            damageTexts.push({ x: player.x, y: player.y - 40, text: `🎉 LEVEL UP! Lv.${player.level}`, color: "#4ade80", opacity: 1, speedY: 1.5 });
+                        }
+                    }
+                }
+            });
+            syncHUD();
+        }
+
+        function triggerSkill() {
+            if (player.isDead) return;
+            playSound('hit');
+            let pCenterX = player.x + player.width/2, pCenterY = player.y + player.height/2;
+            let skillDmg = 80 + (player.skills.slash * 25);
+            activeEffects.push({ x: pCenterX, y: pCenterY, type: "burst", duration: 24, maxDuration: 24 });
+
+            monsters[currentMap].forEach(m => {
+                if (m.alive && Math.hypot(pCenterX - (m.x + m.w/2), pCenterY - (m.y + m.h/2)) < 120) {
+                    m.hp -= skillDmg;
+                    damageTexts.push({ x: m.x + 10, y: m.y - 15, text: `💥-${skillDmg}`, color: "#c084fc", opacity: 1, speedY: 1 });
+                    if (m.hp <= 0) {
+                        m.alive = false; m.diedAt = Date.now();
+                        let gGain = 50, eGain = Math.floor(m.exp * 1.5);
+                        player.gold += gGain; player.exp += eGain;
+                        playSound('coin');
+                        damageTexts.push({ x: m.x, y: m.y - 30, text: `+${gGain}G +${eGain}EXP`, color: "#facc15", opacity: 1, speedY: 1.2 });
+                        if (player.exp >= player.maxExp) {
+                            player.level++; player.exp = 0; player.maxExp = Math.floor(player.maxExp * 1.4);
+                            player.maxHp += 25; player.hp = player.maxHp;
+                            player.statPoints += 3; player.skillPoints += 1;
+                        }
+                    }
+                }
+            });
+            syncHUD();
+        }
+
+        function respawnTown() { currentMap = "town"; player.x = 1150; player.y = 800; player.hp = player.maxHp; player.isDead = false; document.getElementById("deathModal").classList.add("hidden"); syncHUD(); }
+        function respawnHere() { respawnTown(); }
+
+        function switchBagTab(tab) {
+            activeBagTab = tab;
+            document.getElementById("tabEquipBtn").className = tab === "equip" ? "py-1.5 bg-indigo-600 text-white font-bold rounded-xl text-[11px]" : "py-1.5 bg-slate-700 text-slate-300 font-bold rounded-xl text-[11px]";
+            document.getElementById("tabPotionBtn").className = tab === "potion" ? "py-1.5 bg-indigo-600 text-white font-bold rounded-xl text-[11px]" : "py-1.5 bg-slate-700 text-slate-300 font-bold rounded-xl text-[11px]";
+            document.getElementById("tabOtherBtn").className = tab === "other" ? "py-1.5 bg-indigo-600 text-white font-bold rounded-xl text-[11px]" : "py-1.5 bg-slate-700 text-slate-300 font-bold rounded-xl text-[11px]";
+
+            const filtered = player.inventory.filter(i => i.type === tab);
+            document.getElementById("bagItemList").innerHTML = filtered.length ? filtered.map(i => `<div class="bg-slate-700 p-2 rounded-xl text-xs flex justify-between items-center"><span>${i.icon} ${i.name}</span><span class="bg-slate-900 px-2 py-0.5 rounded text-[10px]">x${i.quantity}</span></div>`).join("") : `<p class="text-slate-500 text-center py-4">ไม่มีไอเทมในหมวดนี้</p>`;
+        }
+
+        function gmAddGold(amt) { player.gold += amt; syncHUD(); }
+        function gmHealFull() { player.hp = player.maxHp; syncHUD(); }
+        function gmToggleGodMode() { player.isGodMode = !player.isGodMode; alert(player.isGodMode ? "เปิดอมตะ" : "ปิดอมตะ"); }
+        function gmSpawnSpecificItem(itemId) {
+            let def = ITEM_CATALOG[itemId];
+            if (!def) return;
+            let exist = player.inventory.find(i => i.id === itemId);
+            if (exist) { exist.quantity += 1; } else { player.inventory.push({ ...def, quantity: 1 }); }
+            alert(`🎁 เสก '${def.name}' เข้ากระเป๋าแล้ว!`);
+        }
+        function gmTeleportToPlayer(name) {
+            let target = simulatedPlayers.find(p => p.name === name);
+            if (target) { currentMap = target.map; player.x = target.x; player.y = target.y; toggleGMModal(); syncHUD(); alert(`✨ วาปไปหา ${name} สำเร็จ!`); }
+        }
+        function gmPullPlayer(name) {
+            let target = simulatedPlayers.find(p => p.name === name);
+            if (target) { target.map = currentMap; target.x = player.x + 40; target.y = player.y; toggleGMModal(); alert(`⚡ ดึงตัว ${name} มาหาคุณสำเร็จ!`); }
+        }
+        function gmSpawnItemForPlayer(name) { toggleGMModal(); alert(`🎁 เสกของให้ผู้เล่น ${name} สำเร็จ!`); }
+        function toggleMaintenance() { isMaintenance = !isMaintenance; alert(isMaintenance ? "เปิดโหมดปิดปรับปรุง" : "ปิดโหมดปรับปรุง"); }
+        function toggleCodex() { document.getElementById("codexModal").classList.toggle("hidden"); }
+
+        function update() {
+            if (player.isDead) return;
+            let currentSpeed = player.speed + (player.stats.agi * 0.05);
+
+            if (keys['ArrowUp'] || keys['KeyW'] || moveDir === 'up') {
+                player.y -= currentSpeed; player.direction = 'up'; player.facing = 'right'; player.isMoving = true;
+            } else if (keys['ArrowDown'] || keys['KeyS'] || moveDir === 'down') {
+                player.y += currentSpeed; player.direction = 'down'; player.facing = 'right'; player.isMoving = true;
+            } else if (keys['ArrowLeft'] || keys['KeyA'] || moveDir === 'left') {
+                player.x -= currentSpeed; player.direction = 'left'; player.facing = 'left'; player.isMoving = true;
+            } else if (keys['ArrowRight'] || keys['KeyD'] || moveDir === 'right') {
+                player.x += currentSpeed; player.direction = 'right'; player.facing = 'right'; player.isMoving = true;
+            } else {
+                player.isMoving = false;
+            }
+
+            if (targetPos) {
+                let dx = targetPos.x - player.x, dy = targetPos.y - player.y, dist = Math.hypot(dx, dy);
+                if (dist > 5) {
+                    player.x += (dx/dist)*currentSpeed; player.y += (dy/dist)*currentSpeed;
+                    player.facing = dx > 0 ? "right" : "left"; player.isMoving = true;
+                } else { targetPos = null; player.isMoving = false; }
+            }
+
+            if (monsters[currentMap]) {
+                monsters[currentMap].forEach(m => {
+                    if (m.alive) {
+                        m.moveTimer++;
+                        m.x += m.speed * m.dir;
+                        if (m.moveTimer > 120) {
+                            m.dir *= -1;
+                            m.moveTimer = 0;
+                        }
+                    } else {
+                        let now = Date.now();
+                        if (now - m.diedAt > 4000) { m.alive = true; m.hp = m.maxHp; }
+                    }
+                });
+            }
+
+            simulatedPlayers.forEach(sp => {
+                sp.moveTimer++;
+                if (sp.moveTimer > 150) {
+                    sp.facing = Math.random() > 0.5 ? "left" : "right";
+                    sp.moveTimer = 0;
+                }
+                if (sp.map === currentMap) {
+                    sp.x += (sp.facing === "left" ? -0.5 : 0.5);
+                }
+            });
+
+            camera.x = Math.max(0, Math.min(mapConfig.width - camera.width, player.x + player.width/2 - camera.width/2));
+            camera.y = Math.max(0, Math.min(mapConfig.height - camera.height, player.y + player.height/2 - camera.height/2));
+
+            portals[currentMap].forEach(p => {
+                if (Math.hypot((player.x + player.width/2) - p.x, (player.y + player.height/2) - p.y) < p.radius) {
+                    currentMap = p.targetMap; player.x = p.targetX; player.y = p.targetY; targetPos = null; syncHUD();
+                }
+            });
+
+            for (let i = damageTexts.length - 1; i >= 0; i--) {
+                damageTexts[i].y -= damageTexts[i].speedY; damageTexts[i].opacity -= 0.02;
+                if (damageTexts[i].opacity <= 0) damageTexts.splice(i, 1);
+            }
+            for (let i = activeEffects.length - 1; i >= 0; i--) {
+                activeEffects[i].duration--;
+                if (activeEffects[i].duration <= 0) activeEffects.splice(i, 1);
+            }
+        }
+
+        function draw() {
+            ctx.save();
+            ctx.translate(-camera.x, -camera.y);
+            ctx.fillStyle = currentMap === "town" ? "#1e293b" : "#0f172a";
+            ctx.fillRect(0, 0, mapConfig.width, mapConfig.height);
+
+            decors[currentMap].forEach(d => {
+                ctx.fillStyle = d.type === "building" ? "#475569" : d.type === "gacha" ? "#f59e0b" : "#a855f7";
+                ctx.fillRect(d.x, d.y, d.w, d.h);
+                ctx.fillStyle = "#fbbf24"; ctx.font = "bold 11px sans-serif";
+                ctx.fillText(d.label, d.x, d.y - 8);
+            });
+
+            portals[currentMap].forEach(p => {
+                ctx.strokeStyle = "#38bdf8"; ctx.lineWidth = 3;
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2); ctx.stroke();
+            });
+
+            if (monsters[currentMap]) {
+                monsters[currentMap].forEach(m => {
+                    if (m.alive) {
+                        drawSprite(m.spriteId, m.x, m.y, m.w, m.h);
+                        ctx.fillStyle = "#ef4444"; ctx.fillRect(m.x, m.y - 12, (m.hp / m.maxHp) * m.w, 4);
+                        ctx.fillStyle = "#86efac"; ctx.font = "bold 10px sans-serif";
+                        ctx.fillText(m.name, m.x, m.y - 16);
+                    }
+                });
+            }
+
+            simulatedPlayers.forEach(sp => {
+                if (sp.map === currentMap) {
+                    drawSprite(sp.spriteId, sp.x, sp.y, sp.width, sp.height, sp.facing === "left");
+                    ctx.fillStyle = "#38bdf8"; ctx.font = "bold 10px sans-serif";
+                    ctx.fillText(`👤 ${sp.name} (Lv.${sp.level})`, sp.x - 10, sp.y - 8);
+                }
+            });
+
+            drawSprite(getHeroSpriteId(), player.x, player.y, player.width, player.height, player.facing === "left");
+
+            activeEffects.forEach(fx => {
+                let alpha = fx.duration / fx.maxDuration;
+                ctx.fillStyle = fx.type === "slash" ? `rgba(56, 189, 248, ${alpha * 0.8})` : `rgba(168, 85, 247, ${alpha * 0.8})`;
+                ctx.beginPath(); ctx.arc(fx.x, fx.y, 25, 0, Math.PI * 2); ctx.fill();
+            });
+
+            damageTexts.forEach(dt => {
+                ctx.fillStyle = dt.color; ctx.globalAlpha = dt.opacity;
+                ctx.font = "bold 12px sans-serif"; ctx.fillText(dt.text, dt.x, dt.y);
+                ctx.globalAlpha = 1.0;
+            });
+
+            ctx.restore();
+        }
+
+        function gameLoop() { update(); draw(); requestAnimationFrame(gameLoop); }
+    </script>
+</body>
+</html>
