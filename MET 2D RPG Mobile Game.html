@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MET - 2D RPG Mobile Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        * { user-select: none; -webkit-user-select: none; touch-action: manipulation; }
+        body { background-color: #090d16; color: #f8fafc; font-family: 'Inter', system-ui, sans-serif; overflow: hidden; margin: 0; padding: 0; }
+        canvas { image-rendering: pixelated; -webkit-tap-highlight-color: transparent; display: block; }
+        button { touch-action: manipulation; cursor: pointer; }
+        @keyframes crownGlow {
+            0% { box-shadow: 0 0 5px #fbbf24, inset 0 0 5px #fbbf24; }
+            50% { box-shadow: 0 0 20px #f59e0b, inset 0 0 10px #f59e0b; }
+            100% { box-shadow: 0 0 5px #fbbf24, inset 0 0 5px #fbbf24; }
+        }
+        .gm-profile-crown { animation: crownGlow 2.5s infinite; border-color: #f59e0b !important; }
+        @keyframes ticker {
+            0% { transform: translateX(100%); }
+            100% { transform: translateX(-100%); }
+        }
+        .animate-ticker { animation: ticker 10s linear infinite; }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col items-center justify-center bg-slate-950 p-0 m-0 overflow-hidden">
+
+    <!-- 1. หน้าจอเริ่มเกม (Start Screen Modal) -->
+    <div id="startScreen" class="fixed inset-0 bg-slate-950 z-50 flex flex-col items-center justify-center p-4">
+        <!-- Logo / Icon -->
+        <div class="relative mb-6 flex items-center justify-center">
+            <div class="w-24 h-24 rounded-full bg-gradient-to-tr from-amber-500 to-indigo-600 p-1 shadow-2xl animate-pulse">
+                <div class="w-full h-full bg-slate-900 rounded-full flex items-center justify-center text-4xl">
+                    ⚔️
+                </div>
+            </div>
+        </div>
+
+        <h1 class="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-orange-400 to-amber-200 tracking-wider mb-2">
+            MET
+        </h1>
+        <p class="text-xs text-slate-400 mb-8 font-medium">2D RPG Mobile World - ระบบทดสอบสมบูรณ์แบบ</p>
+
+        <!-- กลุ่มปุ่มเริ่มเกม -->
+        <div class="flex flex-col gap-3.5 w-64">
+            <button onclick="startGame()" class="w-full py-3.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 active:scale-95 text-slate-950 font-black rounded-2xl shadow-lg shadow-orange-500/20 text-sm flex items-center justify-center gap-2 transition-all">
+                <span>▶️</span> เริ่มเข้าสู่เกม
+            </button>
+            <button onclick="alert('ระบบเล่นกับเพื่อนกำลังเปิดให้บริการในเวอร์ชันถัดไป!')" class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-bold rounded-2xl shadow-lg text-xs flex items-center justify-center gap-2 transition-all opacity-90">
+                <span>🌐</span> เล่นกับเพื่อน (Online Room)
+            </button>
+        </div>
+    </div>
+
+    <!-- แถบประกาศแบนเนอร์วิ่งเลื่อน -->
+    <div id="broadcastBanner" class="hidden absolute top-0 left-0 right-0 bg-gradient-to-r from-amber-600 via-orange-600 to-amber-600 text-slate-950 font-black text-xs py-1.5 px-4 z-40 overflow-hidden whitespace-nowrap shadow-lg border-b border-amber-300 pointer-events-none">
+        <div id="broadcastText" class="inline-block animate-ticker">🎉 ประกาศ: [Hero_Pro99] สุ่มได้ [🟡 ดาบมหาเทพ UR] จากตู้กาชาตำนาน!</div>
+    </div>
+
+    <!-- 2. หน้าจอเล่นเกม (Game Screen) -->
+    <div id="gameScreen" class="hidden relative w-full h-full overflow-hidden flex items-center justify-center">
+        <canvas id="gameCanvas" class="w-full h-full bg-slate-900 cursor-pointer"></canvas>
+
+        <!-- กรอบโปรไฟล์ตัวละครมุมซ้ายบน -->
+        <div id="profileBoxContainer" class="absolute top-2 left-2 z-20 flex flex-col items-start transition-all duration-300">
+            <button onclick="toggleProfileMinimize()" id="profileToggleBtn" class="bg-slate-800 text-amber-400 px-2 py-0.5 rounded-t-lg text-[9px] font-bold border border-b-0 border-slate-700">▲ โปรไฟล์</button>
+            <div id="profileBox" class="flex items-center gap-2 bg-slate-900/90 backdrop-blur px-2.5 py-1.5 rounded-b-xl rounded-tr-xl border-2 border-slate-700 shadow-xl transition-all duration-300 gm-profile-crown">
+                <div id="profileAvatarRing" class="relative w-9 h-9 rounded-lg bg-slate-800 border-2 border-amber-500 flex items-center justify-center overflow-hidden shrink-0 shadow-inner">
+                    <span id="profileClassIcon" class="text-xl">🪄</span>
+                    <span class="absolute -top-1 -right-1 bg-amber-500 text-slate-950 font-black text-[8px] px-1 rounded-full shadow" id="profileLvBadge">Lv.1</span>
+                </div>
+                <div class="flex flex-col gap-0.5 w-28 sm:w-32">
+                    <div class="flex justify-between items-center text-[9px] font-bold">
+                        <span id="mapNameText" class="text-amber-400 truncate max-w-[65px]">เมืองหลวง</span>
+                        <span id="goldText" class="text-yellow-400 shrink-0">🪙 10000G</span>
+                    </div>
+                    <div class="relative w-full bg-slate-800 h-1.5 rounded-full overflow-hidden border border-slate-700">
+                        <div id="hpBar" class="bg-rose-500 h-full w-full transition-all duration-200"></div>
+                        <span class="absolute inset-0 flex items-center justify-center text-[7px] font-bold text-white" id="hpText">HP 100/100</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-1">
+                        <div class="relative w-full bg-slate-800 h-1 rounded-full overflow-hidden">
+                            <div id="spBar" class="bg-cyan-500 h-full w-full"></div>
+                        </div>
+                        <div class="relative w-full bg-slate-800 h-1 rounded-full overflow-hidden">
+                            <div id="expBar" class="bg-purple-500 h-full w-0"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- แถบปุ่มควบคุมมุมขวาบน -->
+        <div class="absolute top-2 right-2 flex items-center gap-1.5 bg-slate-900/80 backdrop-blur px-2 py-1 rounded-lg border border-slate-700/60 z-20">
+            <button onclick="toggleGMModal()" class="bg-amber-500 hover:bg-amber-600 text-slate-950 font-black px-2.5 py-1 rounded-md border border-amber-300 shadow text-xs animate-pulse">👑 GM</button>
+            <button onclick="toggleSound()" id="soundToggleBtn" class="bg-slate-800 hover:bg-slate-700 text-slate-200 p-1.5 rounded-md border border-slate-600 text-xs">🔊</button>
+            <button onclick="toggleFullscreen()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 p-1.5 rounded-md border border-slate-600 text-xs">📺</button>
+        </div>
+
+        <!-- ช่องแชทถาวร -->
+        <div id="chatBoxContainer" class="absolute bottom-40 left-4 w-72 z-20 flex flex-col items-start transition-all duration-300 pointer-events-auto">
+            <button onclick="toggleChatMinimize()" id="chatToggleBtn" class="bg-slate-800 text-indigo-400 px-2 py-0.5 rounded-t-lg text-[9px] font-bold border border-b-0 border-slate-700">▲ ช่องแชท</button>
+            <div id="permanentChat" class="w-full h-32 bg-slate-900/90 backdrop-blur rounded-b-2xl rounded-tr-2xl border border-slate-700 p-2 flex flex-col shadow-lg">
+                <div id="permChatMessages" class="flex-1 overflow-y-auto space-y-1 text-[10px] text-slate-200 pr-1">
+                    <div class="text-slate-400 italic">🌐 เข้าสู่เซิร์ฟเวอร์ MET สำเร็จ...</div>
+                    <div class="text-indigo-300"><b>System:</b> ยินดีต้อนรับสู่นักผจญภัยทุกท่าน!</div>
+                </div>
+                <div class="flex gap-1 pt-1.5 border-t border-slate-800">
+                    <input type="text" id="permChatInput" placeholder="พิมพ์แชท..." class="flex-1 bg-slate-800 border border-slate-700 px-2 py-1 rounded-lg text-[10px] text-white focus:outline-none focus:border-indigo-500" onkeydown="if(event.key==='Enter') sendPermChat()">
+                    <button onclick="sendPermChat()" class="bg-indigo-600 hover:bg-indigo-500 px-2.5 py-1 rounded-lg text-[10px] font-bold text-white">ส่ง</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- หน้าต่าง GM Panel -->
+        <div id="gmModal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+            <div class="bg-slate-900 p-5 rounded-3xl border-2 border-amber-500 w-80 max-h-[90vh] flex flex-col shadow-2xl">
+                <h2 class="text-base font-black text-amber-400 mb-3 flex justify-between items-center border-b border-slate-700 pb-2">
+                    <span>👑 MET GM Panel</span>
+                    <button onclick="toggleGMModal()" class="text-slate-400 hover:text-white">✕</button>
+                </h2>
+                <div class="space-y-3 overflow-y-auto flex-1 pr-1 text-xs">
+                    <div class="bg-slate-800 p-2.5 rounded-xl border border-slate-700 space-y-2">
+                        <p class="font-bold text-indigo-400">👥 จัดการผู้เล่นในเซิร์ฟเวอร์</p>
+                        <div id="onlinePlayersList" class="space-y-2">
+                            <div class="bg-slate-900 p-2.5 rounded-xl border border-slate-700 space-y-1.5">
+                                <div class="flex justify-between items-center text-[11px] font-bold text-slate-200">
+                                    <span>👤 Hero_Pro99 (Lv.12)</span>
+                                </div>
+                                <div class="grid grid-cols-2 gap-1.5">
+                                    <button onclick="gmTeleportToPlayer('Hero_Pro99')" class="bg-indigo-600 hover:bg-indigo-500 text-white py-1 rounded-lg font-bold text-[10px]">วาปหา</button>
+                                    <button onclick="gmPullPlayer('Hero_Pro99')" class="bg-emerald-600 hover:bg-emerald-500 text-white py-1 rounded-lg font-bold text-[10px]">ดึงตัว</button>
+                                    <button onclick="gmMutePlayer('Hero_Pro99')" class="bg-purple-600 hover:bg-purple-500 text-white font-bold py-1 rounded-lg text-[10px]">🔇 ห้ามพิมพ์</button>
+                                    <button onclick="gmSpawnItemForPlayer('Hero_Pro99')" class="bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold py-1 rounded-lg text-[10px]">🎁 เสกของ</button>
+                                </div>
+                                <div class="grid grid-cols-2 gap-1.5 pt-1">
+                                    <button onclick="gmTempBanPlayer('Hero_Pro99', 5)" class="bg-orange-600 hover:bg-orange-500 text-white font-bold py-1 rounded-lg text-[9px]">⏱️ แบน 5 นาที</button>
+                                    <button onclick="gmTempBanPlayer('Hero_Pro99', 60)" class="bg-rose-700 hover:bg-rose-600 text-white font-bold py-1 rounded-lg text-[9px]">⏱️ แบน 1 ชม.</button>
+                                </div>
+                                <button onclick="gmBanPlayer('Hero_Pro99')" class="w-full bg-rose-600 hover:bg-rose-500 text-white font-bold py-1 rounded-lg text-[10px]">🚫 แบนถาวร</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-800 p-2.5 rounded-xl border border-slate-700 space-y-2">
+                        <p class="font-bold text-cyan-400">🎁 เสกไอเทมพิเศษ</p>
+                        <button onclick="gmSpawnSpecificItem('ITM-WPN-UR-001')" class="w-full bg-cyan-600 hover:bg-cyan-500 text-white py-1.5 rounded-xl font-bold text-xs shadow">🟡 เสก: ดาบมหาเทพ UR</button>
+                        <button onclick="gmSpawnSpecificItem('ITM-ARM-SSR-001')" class="w-full bg-purple-600 hover:bg-purple-500 text-white py-1.5 rounded-xl font-bold text-xs shadow">🟣 เสก: เกราะมังกร SSR</button>
+                    </div>
+
+                    <div class="bg-slate-800 p-2.5 rounded-xl border border-slate-700">
+                        <p class="font-bold text-yellow-400 mb-1.5">💰 เสกเงิน Gold</p>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button onclick="gmAddGold(1000)" class="bg-yellow-600 hover:bg-yellow-500 text-white py-1.5 rounded-xl font-bold text-xs">+1,000G</button>
+                            <button onclick="gmAddGold(50000)" class="bg-amber-600 hover:bg-amber-500 text-slate-950 font-black py-1.5 rounded-xl text-xs">+50,000G</button>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-800 p-2.5 rounded-xl border border-slate-700">
+                        <p class="font-bold text-rose-400 mb-1.5">❤️ พลัง & สถานะ</p>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button onclick="gmHealFull()" class="bg-emerald-600 hover:bg-emerald-500 text-white py-1.5 rounded-xl font-bold text-xs">💊 ฮีลเต็ม</button>
+                            <button onclick="gmToggleGodMode()" id="godBtn" class="bg-purple-600 hover:bg-purple-500 text-white py-1.5 rounded-xl font-bold text-xs">🛡️ อมตะ</button>
+                        </div>
+                    </div>
+                </div>
+                <button onclick="toggleGMModal()" class="w-full mt-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-xl text-xs font-bold text-white">ปิดหน้าต่าง</button>
+            </div>
+        </div>
+
+        <!-- Pop-up NPC & กาชา -->
+        <div id="interactionModal" class="hidden absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-slate-900/95 backdrop-blur-md p-5 rounded-3xl border-2 border-indigo-500 shadow-2xl w-80 text-center z-40 space-y-3 max-h-[85vh] overflow-y-auto">
+            <h3 id="interactTitle" class="text-base font-black text-amber-400">NPC Dialog</h3>
+            <p id="interactDesc" class="text-xs text-slate-300">รายละเอียด...</p>
+            <div id="interactButtons" class="flex flex-col gap-2 pt-2"></div>
+            <button onclick="closeInteractionModal()" class="text-xs text-slate-500 hover:text-white pt-1">ปิดหน้าต่าง</button>
+        </div>
+
+        <!-- หน้าต่างดูรายการตู้กาชาและ % อัตราดรอป -->
+        <div id="gachaRatesModal" class="hidden absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-slate-900 p-5 rounded-3xl border-2 border-amber-500 w-80 max-h-[85vh] flex flex-col z-50 shadow-2xl">
+            <h3 class="text-base font-black text-amber-400 mb-2">🎰 รายการไอเทม & เรท % กาชา</h3>
+            <div class="flex-1 overflow-y-auto space-y-2 text-xs text-slate-300 pr-1">
+                <div class="bg-slate-800 p-2 rounded-xl border border-amber-500/40">
+                    <div class="font-bold text-amber-400">🟡 ดาบมหาเทพ UR</div>
+                    <div class="text-[10px] text-slate-400">อัตราดรอป: <span class="text-amber-300 font-bold">0.1%</span></div>
+                </div>
+                <div class="bg-slate-800 p-2 rounded-xl border border-purple-500/40">
+                    <div class="font-bold text-purple-400">🟣 เกราะมังกรเพลิง SSR</div>
+                    <div class="text-[10px] text-slate-400">อัตราดรอป: <span class="text-purple-300 font-bold">1.0%</span></div>
+                </div>
+                <div class="bg-slate-800 p-2 rounded-xl border border-indigo-500/40">
+                    <div class="font-bold text-indigo-400">🔵 แหวนจอมเวท SR</div>
+                    <div class="text-[10px] text-slate-400">อัตราดรอป: <span class="text-indigo-300 font-bold">10.0%</span></div>
+                </div>
+                <div class="bg-slate-800 p-2 rounded-xl border border-slate-700">
+                    <div class="font-bold text-slate-300">⚪ ยาฟื้นพลัง HP (ทั่วไป)</div>
+                    <div class="text-[10px] text-slate-400">อัตราดรอป: <span class="text-slate-200 font-bold">88.9%</span></div>
+                </div>
+            </div>
+            <button onclick="document.getElementById('gachaRatesModal').classList.add('hidden')" class="mt-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-xl text-xs font-bold text-white">ปิดหน้าต่าง</button>
+        </div>
+
+        <!-- Pop-up หน้าต่างเมื่อตัวละครตาย -->
+        <div id="deathModal" class="hidden fixed inset-0 bg-rose-950/80 backdrop-blur-md flex items-center justify-center z-50 p-4">
+            <div class="bg-slate-900 p-6 rounded-3xl border-2 border-rose-600 w-80 text-center shadow-2xl space-y-4 animate-bounce">
+                <div class="text-4xl">💀</div>
+                <div>
+                    <h2 class="text-xl font-black text-rose-500">คุณเสียชีวิตแล้ว!</h2>
+                    <p class="text-xs text-slate-400 mt-1">เลือกรูปแบบการฟื้นคืนชีพของคุณ</p>
+                </div>
+                <div class="flex flex-col gap-2 pt-2">
+                    <button onclick="respawnPlayer('town')" class="w-full bg-slate-800 hover:bg-slate-700 text-indigo-300 font-bold py-2.5 rounded-2xl text-xs border border-indigo-500/40 shadow">🏥 เกิดที่เมืองหลวง (ฟรี)</button>
+                    <button onclick="respawnPlayer('here')" id="respawnHereBtn" class="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 font-black py-2.5 rounded-2xl text-xs shadow">🪙 เกิดจุดเดิม (ใช้ 100G)</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- D-Pad ควบคุมทิศทาง -->
+        <div class="absolute bottom-4 left-4 grid grid-cols-3 gap-1 w-36 h-36 bg-slate-900/50 backdrop-blur p-1.5 rounded-3xl border border-slate-700/50 z-30 pointer-events-auto">
+            <div></div>
+            <button onpointerdown="startMove('up')" onpointerup="stopMove()" onpointerleave="stopMove()" class="bg-slate-800/80 active:bg-indigo-600 text-white rounded-2xl font-bold flex items-center justify-center text-xl shadow">▲</button>
+            <div></div>
+            <button onpointerdown="startMove('left')" onpointerup="stopMove()" onpointerleave="stopMove()" class="bg-slate-800/80 active:bg-indigo-600 text-white rounded-2xl font-bold flex items-center justify-center text-xl shadow">◄</button>
+            <div class="bg-slate-800/30 rounded-xl"></div>
+            <button onpointerdown="startMove('right')" onpointerup="stopMove()" onpointerleave="stopMove()" class="bg-slate-800/80 active:bg-indigo-600 text-white rounded-2xl font-bold flex items-center justify-center text-xl shadow">►</button>
+            <div></div>
+            <button onpointerdown="startMove('down')" onpointerup="stopMove()" onpointerleave="stopMove()" class="bg-slate-800/80 active:bg-indigo-600 text-white rounded-2xl font-bold flex items-center justify-center text-xl shadow">▼</button>
+            <div></div>
+        </div>
+
+        <!-- ปุ่มแอ็กชันขวาล่าง -->
+        <div class="absolute bottom-4 right-4 grid grid-cols-2 gap-2 w-40 z-10">
+            <button onclick="triggerAttack()" class="bg-rose-600/90 active:bg-rose-700 text-white p-3 rounded-2xl font-bold shadow border border-rose-400/40 text-xs">⚔️ ฟัน</button>
+            <button onclick="triggerSkill()" class="bg-purple-600/90 active:bg-purple-700 text-white p-3 rounded-2xl font-bold shadow border border-purple-400/40 text-xs">✨ สกิล</button>
+            <button onclick="toggleBagModal()" class="col-span-2 bg-cyan-600/90 active:bg-cyan-700 text-white p-2.5 rounded-2xl font-bold shadow border border-cyan-400/40 text-xs">🎒 กระเป๋า & 🛡️ อุปกรณ์</button>
+        </div>
+    </div>
+
+    <!-- หน้าต่างกระเป๋าและอุปกรณ์สวมใส่ -->
+    <div id="equipModal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+        <div class="bg-slate-900 p-5 rounded-3xl border-2 border-cyan-500 w-80 max-h-[85vh] flex flex-col shadow-2xl space-y-3">
+            <div class="flex justify-between items-center border-b border-slate-700 pb-2">
+                <h3 class="text-base font-black text-cyan-400">🎒 กระเป๋า & 🛡️ อุปกรณ์</h3>
+                <button onclick="toggleEquipModal()" class="text-slate-400 hover:text-white">✕</button>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-1 bg-slate-800 p-1 rounded-xl">
+                <button id="tabEquipBtn" onclick="switchMainTab('equip')" class="py-1 bg-cyan-600 text-white font-bold rounded-lg text-xs">🛡️ สวมใส่</button>
+                <button id="tabBagBtn" onclick="switchMainTab('bag')" class="py-1 bg-slate-700 text-slate-300 font-bold rounded-lg text-xs">🎒 ช่องเก็บของ</button>
+            </div>
+
+            <!-- ส่วนแสดงอุปกรณ์สวมใส่ -->
+            <div id="equipSection" class="grid grid-cols-2 gap-2">
+                <div class="bg-slate-800 p-2 rounded-xl flex flex-col items-center border border-slate-700">
+                    <span class="text-xs text-slate-400 font-bold">⚔️ อาวุธ</span>
+                    <span id="nameWeapon" class="text-[9px] text-amber-300 mt-1 truncate max-w-full">ดาบเริ่มต้น</span>
+                </div>
+                <div class="bg-slate-800 p-2 rounded-xl flex flex-col items-center border border-slate-700">
+                    <span class="text-xs text-slate-400 font-bold">🛡️ เกราะ</span>
+                    <span id="nameArmor" class="text-[9px] text-amber-300 mt-1 truncate max-w-full">ชุดผ้า</span>
+                </div>
+                <div class="bg-slate-800 p-2 rounded-xl flex flex-col items-center border border-slate-700">
+                    <span class="text-xs text-slate-400 font-bold">🧥 ผ้าคลุม</span>
+                    <span id="nameCloak" class="text-[9px] text-amber-300 mt-1 truncate max-w-full">ไม่มี</span>
+                </div>
+                <div class="bg-slate-800 p-2 rounded-xl flex flex-col items-center border border-slate-700">
+                    <span class="text-xs text-slate-400 font-bold">👟 รองเท้า</span>
+                    <span id="nameBoots" class="text-[9px] text-amber-300 mt-1 truncate max-w-full">รองเท้าหนัง</span>
+                </div>
+                <div class="bg-slate-800 p-2 rounded-xl flex flex-col items-center border border-slate-700">
+                    <span class="text-xs text-slate-400 font-bold">👑 หมวก</span>
+                    <span id="nameHelmet" class="text-[9px] text-amber-300 mt-1 truncate max-w-full">ไม่มี</span>
+                </div>
+                <div class="bg-slate-800 p-2 rounded-xl flex flex-col items-center border border-slate-700">
+                    <span class="text-xs text-slate-400 font-bold">💍 เครื่องประดับ</span>
+                    <span id="nameAccessory" class="text-[9px] text-amber-300 mt-1 truncate max-w-full">แหวนเวทมนตร์</span>
+                </div>
+            </div>
+
+            <!-- ส่วนแสดงกระเป๋าเก็บของ -->
+            <div id="bagSection" class="hidden flex-1 flex flex-col space-y-2 max-h-60">
+                <div class="grid grid-cols-3 gap-1 text-[10px]">
+                    <button id="subTabEquip" onclick="switchBagSubTab('equip')" class="py-1 bg-indigo-600 text-white font-bold rounded-md">อุปกรณ์</button>
+                    <button id="subTabPotion" onclick="switchBagSubTab('potion')" class="py-1 bg-slate-700 text-slate-300 font-bold rounded-md">ยา</button>
+                    <button id="subTabOther" onclick="switchBagSubTab('other')" class="py-1 bg-slate-700 text-slate-300 font-bold rounded-md">ขยะ/อื่นๆ</button>
+                </div>
+                <div id="bagItemList" class="flex-1 overflow-y-auto space-y-1.5 pr-1 text-xs"></div>
+            </div>
+
+            <button onclick="toggleEquipModal()" class="w-full py-2 bg-slate-700 hover:bg-slate-600 rounded-xl text-xs font-bold text-white">ปิดหน้าต่าง</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+
+        const mapConfig = { width: 2400, height: 1600 };
+        let camera = { x: 0, y: 0, width: window.innerWidth, height: window.innerHeight };
+        let isProfileMinimized = false;
+        let isChatMinimized = false;
+        let activeBagSubTab = "equip";
+
+        const keys = {};
+        window.addEventListener('keydown', (e) => { keys[e.code] = true; });
+        window.addEventListener('keyup', (e) => { keys[e.code] = false; });
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            camera.width = canvas.width;
+            camera.height = canvas.height;
+        }
+        window.addEventListener('resize', resizeCanvas);
+
+        // ระบบ Auto-Save & Load Data
+        function saveGame() {
+            const saveData = {
+                x: player.x,
+                y: player.y,
+                hp: player.hp,
+                sp: player.sp,
+                gold: player.gold,
+                level: player.level,
+                exp: player.exp,
+                jobClass: player.jobClass,
+                spriteId: player.spriteId,
+                inventory: player.inventory
+            };
+            localStorage.setItem("met_rpg_save_v1", JSON.stringify(saveData));
+        }
+
+        function loadGame() {
+            const savedData = localStorage.getItem("met_rpg_save_v1");
+            if (savedData) {
+                try {
+                    const data = JSON.parse(savedData);
+                    player.x = data.x || player.x;
+                    player.y = data.y || player.y;
+                    player.hp = data.hp ?? player.hp;
+                    player.sp = data.sp ?? player.sp;
+                    player.gold = data.gold ?? player.gold;
+                    player.level = data.level || player.level;
+                    player.exp = data.exp || player.exp;
+                    player.jobClass = data.jobClass || player.jobClass;
+                    player.spriteId = data.spriteId || (player.jobClass === 'swordsman' ? 'HERO-SWORD-001' : 'HERO-MAGE-001');
+                    if (data.inventory) player.inventory = data.inventory;
+                } catch(e) {
+                    console.log("Save data load error", e);
+                }
+            }
+        }
+
+        // ฟังก์ชันสั่งกดเริ่มเข้าสู่เกม
+        function startGame() {
+            initAudio();
+            document.getElementById("startScreen").classList.add("hidden");
+            document.getElementById("gameScreen").classList.remove("hidden");
+            resizeCanvas();
+            loadGame();
+            checkAutoGMPermission();
+            syncHUD();
+            if (!gameLoopStarted) {
+                gameLoopStarted = true;
+                gameLoop();
+            }
+        }
+
+        let soundEnabled = true;
+        let audioCtx = null;
+        function initAudio() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+        }
+
+        function playSound(type) {
+            if (!soundEnabled) return;
+            initAudio();
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            let now = audioCtx.currentTime;
+            if (type === 'hit') {
+                osc.type = 'square'; osc.frequency.setValueAtTime(180, now); osc.frequency.exponentialRampToValueAtTime(40, now + 0.1);
+                gain.gain.setValueAtTime(0.15, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+                osc.start(now); osc.stop(now + 0.1);
+            } else if (type === 'coin') {
+                osc.type = 'triangle'; osc.frequency.setValueAtTime(600, now); osc.frequency.setValueAtTime(900, now + 0.08);
+                gain.gain.setValueAtTime(0.15, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+                osc.start(now); osc.stop(now + 0.2);
+            }
+        }
+        function toggleSound() {
+            soundEnabled = !soundEnabled;
+            document.getElementById("soundToggleBtn").innerText = soundEnabled ? "🔊" : "🔇";
+        }
+
+        let currentMap = "town";
+        let activeMoveDir = "";
+        let targetPos = null;
+
+        let player = {
+            x: 1150, y: 800, width: 50, height: 60, speed: 4,
+            level: 1, exp: 0, maxExp: 100, hp: 100, maxHp: 100, sp: 50, maxSp: 50,
+            gold: 10000, jobClass: "swordsman", facing: "right", spriteId: "HERO-SWORD-001",
+            isGM: true, isMuted: false, isGodMode: false,
+            inventory: [
+                { id: "ITM-POT-HP-001", name: "ยา HP", icon: "🧪", type: "potion", quantity: 5, desc: "ฟื้นฟู 50 HP" },
+                { id: "ITM-POT-SP-001", name: "ยา SP", icon: "💧", type: "potion", quantity: 3, desc: "ฟื้นฟู 30 SP" },
+                { id: "ITM-WPN-UR-001", name: "ดาบมหาเทพ UR", icon: "⚔️", type: "equip", quantity: 1, desc: "อาวุธระดับตำนาน" },
+                { id: "ITM-JUNK-001", name: "เศษเยลลี่สไลม์", icon: "🟢", type: "other", quantity: 12, desc: "ขยะมอนสเตอร์" }
+            ]
+        };
+
+        let monsters = {
+            town: [],
+            forest: [
+                { id: "M1", x: 500, y: 350, w: 44, h: 44, hp: 350, maxHp: 350, color: "#4ade80", name: "สไลม์เขียว (Lv.2)", alive: true, exp: 35, atk: 8, speed: 1.2, moveTimer: 0, dir: 1, diedAt: 0 },
+                { id: "M2", x: 800, y: 450, w: 44, h: 44, hp: 350, maxHp: 350, color: "#4ade80", name: "สไลม์เขียว (Lv.2)", alive: true, exp: 35, atk: 8, speed: 1.2, moveTimer: 0, dir: -1, diedAt: 0 }
+            ],
+            volcano: [
+                { id: "M3", x: 600, y: 500, w: 62, h: 62, hp: 1500, maxHp: 1500, color: "#ea580c", name: "โกเลมลาวา (Lv.8)", alive: true, exp: 200, atk: 25, speed: 0.8, moveTimer: 0, dir: 1, diedAt: 0 }
+            ]
+        };
+
+        const SPRITE_SOURCES = {
+            "HERO-SWORD-001": "https://png.pngtree.com/png-vector/20230808/ourmid/pngtree-warrior-clipart-cartoon-character-warrior-holding-a-sword-and-shield-vector-png-image_6827714.png",
+            "HERO-MAGE-001": "https://png.pngtree.com/png-vector/20240619/ourlarge/pngtree-cartoon-wizard-with-staff-png-image_12796838.png"
+        };
+
+        const SPRITE_IMAGES = {};
+        const PROCESSED_SPRITES = {};
+
+        Object.entries(SPRITE_SOURCES).forEach(([id, src]) => {
+            const img = new Image();
+            img.crossOrigin = "Anonymous";
+            img.src = src;
+            img.onload = () => {
+                const offCanvas = document.createElement("canvas");
+                offCanvas.width = img.width; offCanvas.height = img.height;
+                const offCtx = offCanvas.getContext("2d");
+                offCtx.drawImage(img, 0, 0);
+                const imgData = offCtx.getImageData(0, 0, img.width, img.height);
+                const data = imgData.data;
+                for (let i = 0; i < data.length; i += 4) {
+                    const r = data[i], g = data[i+1], b = data[i+2];
+                    if (r > 200 && g > 200 && b > 200) {
+                        data[i+3] = 0;
+                    }
+                }
+                offCtx.putImageData(imgData, 0, 0);
+                PROCESSED_SPRITES[id] = offCanvas;
+            };
+            SPRITE_IMAGES[id] = img;
+        });
+
+        const decors = {
+            town: [
+                { id: "castle", x: 1100, y: 300, w: 220, h: 160, type: "building", label: "🏰 ปราสาท MET" },
+                { id: "gacha", x: 950, y: 780, w: 50, h: 60, type: "gacha", label: "🎰 ตู้สุ่มกาชา" },
+                { id: "class_npc", x: 1350, y: 780, w: 40, h: 50, type: "npc", name: "อาจารย์เปลี่ยนอาชีพ", label: "🧙‍♂️ เปลี่ยนอาชีพ" }
+            ],
+            forest: [],
+            volcano: []
+        };
+
+        const portals = {
+            town: [{ x: 2300, y: 800, radius: 50, targetMap: "forest", targetX: 150, targetY: 800, label: "🌀 ไปป่ามอนสเตอร์ (Lv.1-5)" }],
+            forest: [
+                { x: 100, y: 800, radius: 50, targetMap: "town", targetX: 2200, targetY: 800, label: "🌀 กลับเมืองหลวง" },
+                { x: 2300, y: 800, radius: 50, targetMap: "volcano", targetX: 150, targetY: 800, label: "🌋 ไปภูเขาไฟ (Lv.6+)" }
+            ],
+            volcano: [{ x: 100, y: 800, radius: 50, targetMap: "forest", targetX: 2200, targetY: 800, label: "🌀 กลับป่ามอนสเตอร์" }]
+        };
+
+        let damageTexts = [];
+        let activeEffects = [];
+        let gameLoopStarted = false;
+
+        function startMove(dir) { activeMoveDir = dir; targetPos = null; }
+        function stopMove() { activeMoveDir = ""; }
+
+        function triggerAttack() {
+            playSound('hit');
+            activeEffects.push({ x: player.x + player.width/2, y: player.y + player.height/2, type: "slash", duration: 15, maxDuration: 15 });
+            if (monsters[currentMap]) {
+                monsters[currentMap].forEach(m => {
+                    if (m.alive && Math.hypot((player.x - m.x), (player.y - m.y)) < 80) {
+                        m.hp -= 45;
+                        damageTexts.push({ x: m.x, y: m.y - 10, text: "-45", color: "#ef4444", opacity: 1, speedY: 1 });
+                        if (m.hp <= 0) { 
+                            m.alive = false; 
+                            m.diedAt = Date.now(); 
+                            player.gold += 50; 
+                            syncHUD(); 
+                            saveGame(); 
+                        }
+                    }
+                });
+            }
+        }
+
+        function triggerSkill() {
+            if (player.sp < 10) return;
+            player.sp -= 10; syncHUD(); playSound('hit');
+            activeEffects.push({ x: player.x + player.width/2, y: player.y + player.height/2, type: "skill", duration: 25, maxDuration: 25 });
+        }
+
+        function handlePointerClick(e) {
+            if (document.getElementById("startScreen").classList.contains("hidden") === false) return;
+            const rect = canvas.getBoundingClientRect();
+            const clickX = e.clientX - rect.left + camera.x;
+            const clickY = e.clientY - rect.top + camera.y;
+
+            let clickedNPC = false;
+            decors[currentMap].forEach(obj => {
+                if (clickX >= obj.x && clickX <= obj.x + obj.w && clickY >= obj.y && clickY <= obj.y + obj.h) {
+                    clickedNPC = true;
+                    openNPCInteraction(obj);
+                }
+            });
+
+            if (!clickedNPC) {
+                targetPos = { x: clickX - player.width / 2, y: clickY - player.height / 2 };
+                activeMoveDir = "";
+            }
+        }
+        canvas.addEventListener('click', handlePointerClick);
+
+        function openNPCInteraction(obj) {
+            const modal = document.getElementById("interactionModal");
+            document.getElementById("interactTitle").innerText = obj.label;
+            document.getElementById("interactDesc").innerText = "ยินดีต้อนรับสู่นักผจญภัย!";
+            let btns = document.getElementById("interactButtons");
+            
+            if (obj.type === "gacha") {
+                btns.innerHTML = `
+                    <button onclick="gachaSpin(1); closeInteractionModal();" class="bg-amber-500 text-slate-950 font-bold py-2 rounded-xl text-xs shadow">🎰 สุ่ม 1 ครั้ง (20G)</button>
+                    <button onclick="gachaSpin(10); closeInteractionModal();" class="bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 font-black py-2 rounded-xl text-xs shadow">🔥 สุ่ม 10 ครั้ง (200G)</button>
+                    <button onclick="document.getElementById('gachaRatesModal').classList.remove('hidden')" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 rounded-xl text-xs shadow">🔍 ดูรายการไอเทม & % เรทสุ่ม</button>
+                `;
+            } else if (obj.id === "class_npc") {
+                btns.innerHTML = `
+                    <button onclick="changeClass('swordsman'); closeInteractionModal();" class="bg-slate-800 hover:bg-slate-700 text-rose-400 py-2 rounded-xl text-xs font-bold border border-rose-500/40">⚔️ เปลี่ยนเป็น นักดาบ (Swordsman)</button>
+                    <button onclick="changeClass('mage'); closeInteractionModal();" class="bg-slate-800 hover:bg-slate-700 text-purple-400 py-2 rounded-xl text-xs font-bold border border-purple-500/40">🪄 เปลี่ยนเป็น จอมเวท (Mage)</button>
+                `;
+            } else {
+                btns.innerHTML = `<button onclick="closeInteractionModal()" class="bg-indigo-600 text-white py-2 rounded-xl text-xs font-bold">ปิด</button>`;
+            }
+            modal.classList.remove("hidden");
+        }
+
+        function changeClass(newJob) {
+            player.jobClass = newJob;
+            if (newJob === 'swordsman') {
+                player.spriteId = 'HERO-SWORD-001';
+                document.getElementById('profileClassIcon').innerText = '⚔️';
+                alert('✨ เปลี่ยนอาชีพเป็น "นักดาบ" เรียบร้อย!');
+            } else if (newJob === 'mage') {
+                player.spriteId = 'HERO-MAGE-001';
+                document.getElementById('profileClassIcon').innerText = '🪄';
+                alert('✨ เปลี่ยนอาชีพเป็น "จอมเวท" เรียบร้อย!');
+            }
+            syncHUD();
+            saveGame();
+        }
+
+        function closeInteractionModal() { document.getElementById("interactionModal").classList.add("hidden"); }
+
+        function triggerBroadcast(text) {
+            const banner = document.getElementById("broadcastBanner");
+            const bannerText = document.getElementById("broadcastText");
+            if (!banner || !bannerText) return;
+            bannerText.innerText = text;
+            banner.classList.remove("hidden");
+            setTimeout(() => { banner.classList.add("hidden"); }, 8000);
+        }
+
+        function gachaSpin(times) {
+            const cost = times * 20;
+            if (player.gold < cost) {
+                alert("🪙 ทองไม่พอสำหรับสุ่มกาชา!");
+                return;
+            }
+            player.gold -= cost;
+            syncHUD();
+            playSound('coin');
+
+            let results = [];
+            for (let i = 0; i < times; i++) {
+                let rand = Math.random() * 100;
+                if (rand < 0.1) {
+                    results.push("🟡 ดาบมหาเทพ UR");
+                    triggerBroadcast(`🎉 ประกาศ: [${player.isGM ? "GM_Hero" : "Hero"}] สุ่มได้ [🟡 ดาบมหาเทพ UR] จากตู้กาชา!`);
+                } else if (rand < 1.1) {
+                    results.push("🟣 เกราะมังกรเพลิง SSR");
+                } else if (rand < 11.1) {
+                    results.push("🔵 แหวนจอมเวท SR");
+                } else {
+                    results.push("⚪ ยาฟื้นพลัง HP");
+                    let hpPot = player.inventory.find(item => item.id === "ITM-POT-HP-001");
+                    if (hpPot) hpPot.quantity++;
+                }
+            }
+            saveGame();
+            alert(`🎰 ผลการสุ่มกาชา (${times} ครั้ง):\n- ` + results.join("\n- "));
+        }
+
+        function toggleGMModal() {
+            document.getElementById("gmModal").classList.toggle("hidden");
+        }
+
+        function gmAddGold(amount) {
+            player.gold += amount;
+            syncHUD();
+            saveGame();
+            playSound('coin');
+            alert(`💰 เพิ่ม Gold +${amount.toLocaleString()}G สำเร็จ!`);
+        }
+
+        function gmHealFull() {
+            player.hp = player.maxHp;
+            player.sp = player.maxSp;
+            syncHUD();
+            saveGame();
+            alert("💊 ฟื้นฟู HP & SP เต็มเรียบร้อย!");
+        }
+
+        function gmToggleGodMode() {
+            player.isGodMode = !player.isGodMode;
+            const btn = document.getElementById("godBtn");
+            if (btn) btn.innerText = player.isGodMode ? "🛡️ อมตะ (เปิด)" : "🛡️ อมตะ";
+            alert(player.isGodMode ? "🛡️ เปิดโหมดอมตะแล้ว!" : "🛡️ ปิดโหมดอมตะแล้ว");
+        }
+
+        function gmTeleportToPlayer(name) {
+            player.x = 1250; player.y = 750;
+            alert(`🌀 วาปไปหาผู้เล่น ${name} เรียบร้อย!`);
+        }
+
+        function gmPullPlayer(name) {
+            alert(`🌀 ดึงตัวผู้เล่น ${name} มาหาเรียบร้อย!`);
+        }
+
+        function gmMutePlayer(name) {
+            alert(`🔇 สั่งห้ามผู้เล่น ${name} พิมพ์แชทแล้ว!`);
+        }
+
+        function gmSpawnItemForPlayer(name) {
+            gmSpawnSpecificItem('ITM-WPN-UR-001');
+        }
+
+        function gmTempBanPlayer(name, minutes) {
+            alert(`⏱️ แบนผู้เล่น ${name} ชั่วคราวเป็นเวลา ${minutes} นาที เรียบร้อย!`);
+        }
+
+        function gmBanPlayer(name) {
+            alert(`🚫 แบนผู้เล่น ${name} ถาวรเรียบร้อย!`);
+        }
+
+        function gmSpawnSpecificItem(itemId) {
+            if (itemId === 'ITM-WPN-UR-001') {
+                player.inventory.push({ id: "ITM-WPN-UR-001", name: "ดาบมหาเทพ UR", icon: "⚔️", type: "equip", quantity: 1, desc: "อาวุธระดับตำนาน" });
+                alert("🟡 เสกไอเทม: ดาบมหาเทพ UR เข้ากระเป๋าแล้ว!");
+            } else if (itemId === 'ITM-ARM-SSR-001') {
+                player.inventory.push({ id: "ITM-ARM-SSR-001", name: "เกราะมังกร SSR", icon: "🛡️", type: "equip", quantity: 1, desc: "เกราะป้องกันระดับสูง" });
+                alert("🟣 เสกไอเทม: เกราะมังกร SSR เข้ากระเป๋าแล้ว!");
+            }
+            saveGame();
+            renderBagItems();
+        }
+
+        function toggleEquipModal() {
+            document.getElementById("equipModal").classList.toggle("hidden");
+        }
+
+        function toggleBagModal() {
+            const modal = document.getElementById("equipModal");
+            modal.classList.remove("hidden");
+            switchMainTab('bag');
+        }
+
+        function switchMainTab(tab) {
+            const equipSec = document.getElementById("equipSection");
+            const bagSec = document.getElementById("bagSection");
+            const tabEquipBtn = document.getElementById("tabEquipBtn");
+            const tabBagBtn = document.getElementById("tabBagBtn");
+
+            if (tab === 'equip') {
+                equipSec.classList.remove("hidden");
+                bagSec.classList.add("hidden");
+                tabEquipBtn.className = "py-1 bg-cyan-600 text-white font-bold rounded-lg text-xs";
+                tabBagBtn.className = "py-1 bg-slate-700 text-slate-300 font-bold rounded-lg text-xs";
+            } else {
+                equipSec.classList.add("hidden");
+                bagSec.classList.remove("hidden");
+                tabBagBtn.className = "py-1 bg-cyan-600 text-white font-bold rounded-lg text-xs";
+                tabEquipBtn.className = "py-1 bg-slate-700 text-slate-300 font-bold rounded-lg text-xs";
+                renderBagItems();
+            }
+        }
+
+        function switchBagSubTab(sub) {
+            activeBagSubTab = sub;
+            ['equip', 'potion', 'other'].forEach(t => {
+                const btn = document.getElementById("subTab" + t.charAt(0).toUpperCase() + t.slice(1));
+                if (btn) {
+                    btn.className = t === sub ? "py-1 bg-indigo-600 text-white font-bold rounded-md" : "py-1 bg-slate-700 text-slate-300 font-bold rounded-md";
+                }
+            });
+            renderBagItems();
+        }
+
+        function renderBagItems() {
+            const list = document.getElementById("bagItemList");
+            if (!list) return;
+            list.innerHTML = "";
+            const filtered = player.inventory.filter(item => item.type === activeBagSubTab);
+
+            if (filtered.length === 0) {
+                list.innerHTML = `<div class="text-slate-500 text-[10px] text-center py-4">ไม่มีไอเทมในหมวดนี้</div>`;
+                return;
+            }
+
+            filtered.forEach((item, index) => {
+                const div = document.createElement("div");
+                div.className = "flex items-center justify-between bg-slate-800 p-2 rounded-xl border border-slate-700";
+                div.innerHTML = `
+                    <div class="flex items-center gap-2">
+                        <span class="text-base">${item.icon}</span>
+                        <div>
+                            <div class="font-bold text-slate-200 text-xs">${item.name} <span class="text-amber-400">x${item.quantity}</span></div>
+                            <div class="text-[9px] text-slate-400">${item.desc}</div>
+                        </div>
+                    </div>
+                    ${item.type === 'potion' ? `<button onclick="usePotion('${item.id}')" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[9px] px-2 py-1 rounded-lg">🧪 กดใช้</button>` : ''}
+                `;
+                list.appendChild(div);
+            });
+        }
+
+        function usePotion(itemId) {
+            const pot = player.inventory.find(i => i.id === itemId);
+            if (pot && pot.quantity > 0) {
+                pot.quantity--;
+                if (itemId === "ITM-POT-HP-001") player.hp = Math.min(player.maxHp, player.hp + 50);
+                if (itemId === "ITM-POT-SP-001") player.sp = Math.min(player.maxSp, player.sp + 30);
+                syncHUD();
+                saveGame();
+                renderBagItems();
+                playSound('hit');
+            }
+        }
+
+        function toggleProfileMinimize() {
+            isProfileMinimized = !isProfileMinimized;
+            document.getElementById("profileBox").style.display = isProfileMinimized ? "none" : "flex";
+            document.getElementById("profileToggleBtn").innerText = isProfileMinimized ? "▼ โปรไฟล์" : "▲ โปรไฟล์";
+        }
+
+        function toggleChatMinimize() {
+            isChatMinimized = !isChatMinimized;
+            document.getElementById("permanentChat").style.display = isChatMinimized ? "none" : "flex";
+            document.getElementById("chatToggleBtn").innerText = isChatMinimized ? "▼ ช่องแชท" : "▲ ช่องแชท";
+        }
+
+        function sendPermChat() {
+            const input = document.getElementById("permChatInput");
+            if (!input || !input.value.trim()) return;
+            const msgBox = document.getElementById("permChatMessages");
+            const div = document.createElement("div");
+            div.innerHTML = `<b class="text-amber-400">[GM] ${player.jobClass.toUpperCase()}:</b> ${input.value.trim()}`;
+            msgBox.appendChild(div);
+            msgBox.scrollTop = msgBox.scrollHeight;
+            input.value = "";
+        }
+
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(() => {});
+            } else {
+                document.exitFullscreen().catch(() => {});
+            }
+        }
+
+        function syncHUD() {
+            document.getElementById("profileLvBadge").innerText = `Lv.${player.level}`;
+            document.getElementById("goldText").innerText = `🪙 ${player.gold.toLocaleString()}G`;
+            document.getElementById("hpBar").style.width = `${(player.hp / player.maxHp) * 100}%`;
+            document.getElementById("hpText").innerText = `HP ${Math.round(player.hp)}/${player.maxHp}`;
+            document.getElementById("spBar").style.width = `${(player.sp / player.maxSp) * 100}%`;
+            document.getElementById("expBar").style.width = `${(player.exp / player.maxExp) * 100}%`;
+            document.getElementById("profileClassIcon").innerText = player.jobClass === 'swordsman' ? '⚔️' : '🪄';
+        }
+
+        function checkAutoGMPermission() {
+            const isGitHubPages = window.location.hostname.includes("github.io");
+            const isLocalOrDev = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+            if (isGitHubPages || isLocalOrDev || player.isGM) {
+                player.isGM = true;
+                const gmBtn = document.querySelector("button[onclick='toggleGMModal()']");
+                if (gmBtn) gmBtn.style.display = "block";
+            }
+        }
+
+        function handlePlayerDeath() {
+            if (player.isGodMode) return;
+            const modal = document.getElementById("deathModal");
+            const btnHere = document.getElementById("respawnHereBtn");
+            if (btnHere) {
+                if (player.gold >= 100) {
+                    btnHere.disabled = false;
+                    btnHere.className = "w-full bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 font-black py-2.5 rounded-2xl text-xs shadow cursor-pointer opacity-100";
+                    btnHere.innerText = "🪙 เกิดจุดเดิม (ใช้ 100G)";
+                } else {
+                    btnHere.disabled = true;
+                    btnHere.className = "w-full bg-slate-800 text-slate-500 font-bold py-2.5 rounded-2xl text-xs border border-slate-700 cursor-not-allowed opacity-60";
+                    btnHere.innerText = "🪙 เกิดจุดเดิม (100G - ทองไม่พอ)";
+                }
+            }
+            modal.classList.remove("hidden");
+        }
+
+        function respawnPlayer(type) {
+            const modal = document.getElementById("deathModal");
+            if (type === 'here') {
+                if (player.gold < 100) return;
+                player.gold -= 100;
+            } else if (type === 'town') {
+                currentMap = "town";
+                player.x = 1150;
+                player.y = 800;
+                document.getElementById("mapNameText").innerText = "เมืองหลวง";
+            }
+            player.hp = player.maxHp;
+            player.sp = player.maxSp;
+            syncHUD();
+            saveGame();
+            modal.classList.add("hidden");
+        }
+
+        function update() {
+            if (player.hp <= 0) {
+                handlePlayerDeath();
+                return;
+            }
+
+            let dx = 0, dy = 0;
+            if (keys['KeyW'] || keys['ArrowUp'] || activeMoveDir === 'up') dy -= player.speed;
+            if (keys['KeyS'] || keys['ArrowDown'] || activeMoveDir === 'down') dy += player.speed;
+            if (keys['KeyA'] || keys['ArrowLeft'] || activeMoveDir === 'left') { dx -= player.speed; player.facing = "left"; }
+            if (keys['KeyD'] || keys['ArrowRight'] || activeMoveDir === 'right') { dx += player.speed; player.facing = "right"; }
+
+            if (targetPos) {
+                const diffX = targetPos.x - player.x;
+                const diffY = targetPos.y - player.y;
+                const dist = Math.hypot(diffX, diffY);
+                if (dist > 5) {
+                    dx = (diffX / dist) * player.speed;
+                    dy = (diffY / dist) * player.speed;
+                    player.facing = dx >= 0 ? "right" : "left";
+                } else {
+                    targetPos = null;
+                }
+            }
+
+            player.x = Math.max(50, Math.min(mapConfig.width - 50, player.x + dx));
+            player.y = Math.max(50, Math.min(mapConfig.height - 50, player.y + dy));
+
+            camera.x = player.x - camera.width / 2;
+            camera.y = player.y - camera.height / 2;
+            camera.x = Math.max(0, Math.min(mapConfig.width - camera.width, camera.x));
+            camera.y = Math.max(0, Math.min(mapConfig.height - camera.height, camera.y));
+
+            if (portals[currentMap]) {
+                portals[currentMap].forEach(portal => {
+                    const dist = Math.hypot(player.x - portal.x, player.y - portal.y);
+                    if (dist < portal.radius) {
+                        currentMap = portal.targetMap;
+                        player.x = portal.targetX;
+                        player.y = portal.targetY;
+                        document.getElementById("mapNameText").innerText = currentMap === "town" ? "เมืองหลวง" : (currentMap === "forest" ? "ป่ามอนสเตอร์" : "ภูเขาไฟ");
+                    }
+                });
+            }
+
+            if (monsters[currentMap]) {
+                monsters[currentMap].forEach(m => {
+                    if (!m.alive) {
+                        if (Date.now() - m.diedAt > 5000) {
+                            m.alive = true; m.hp = m.maxHp;
+                        }
+                        return;
+                    }
+                    const distToPlayer = Math.hypot(player.x - m.x, player.y - m.y);
+                    if (distToPlayer < 200 && distToPlayer > 30) {
+                        m.x += ((player.x - m.x) / distToPlayer) * m.speed;
+                        m.y += ((player.y - m.y) / distToPlayer) * m.speed;
+                    }
+                    if (distToPlayer < 35 && !player.isGodMode) {
+                        player.hp = Math.max(0, player.hp - 0.2);
+                        syncHUD();
+                    }
+                });
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.save();
+            ctx.translate(-camera.x, -camera.y);
+
+            ctx.fillStyle = currentMap === "town" ? "#1e293b" : (currentMap === "forest" ? "#064e3b" : "#451a03");
+            ctx.fillRect(0, 0, mapConfig.width, mapConfig.height);
+
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.05)";
+            for (let x = 0; x < mapConfig.width; x += 100) {
+                ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, mapConfig.height); ctx.stroke();
+            }
+            for (let y = 0; y < mapConfig.height; y += 100) {
+                ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(mapConfig.width, y); ctx.stroke();
+            }
+
+            decors[currentMap].forEach(obj => {
+                ctx.fillStyle = obj.type === "building" ? "#334155" : (obj.type === "gacha" ? "#f59e0b" : "#8b5cf6");
+                ctx.beginPath();
+                ctx.roundRect(obj.x, obj.y, obj.w, obj.h, 12);
+                ctx.fill();
+                ctx.fillStyle = "#ffffff"; ctx.font = "bold 12px Inter"; ctx.textAlign = "center";
+                ctx.fillText(obj.label, obj.x + obj.w / 2, obj.y - 8);
+            });
+
+            if (portals[currentMap]) {
+                portals[currentMap].forEach(portal => {
+                    ctx.fillStyle = "rgba(99, 102, 241, 0.3)";
+                    ctx.beginPath(); ctx.arc(portal.x, portal.y, portal.radius, 0, Math.PI * 2); ctx.fill();
+                    ctx.strokeStyle = "#818cf8"; ctx.lineWidth = 3; ctx.stroke();
+                    ctx.fillStyle = "#c7d2fe"; ctx.font = "bold 12px Inter"; ctx.textAlign = "center";
+                    ctx.fillText(portal.label, portal.x, portal.y - portal.radius - 8);
+                });
+            }
+
+            if (monsters[currentMap]) {
+                monsters[currentMap].forEach(m => {
+                    if (!m.alive) return;
+                    ctx.fillStyle = m.color;
+                    ctx.beginPath(); ctx.arc(m.x, m.y, m.w / 2, 0, Math.PI * 2); ctx.fill();
+                    ctx.fillStyle = "#ffffff"; ctx.font = "10px Inter"; ctx.textAlign = "center";
+                    ctx.fillText(m.name, m.x, m.y - m.w / 2 - 6);
+                });
+            }
+
+            const sprite = PROCESSED_SPRITES[player.spriteId];
+            if (sprite) {
+                ctx.save();
+                if (player.facing === "left") {
+                    ctx.scale(-1, 1);
+                    ctx.drawImage(sprite, -player.x - player.width, player.y, player.width, player.height);
+                } else {
+                    ctx.drawImage(sprite, player.x, player.y, player.width, player.height);
+                }
+                ctx.restore();
+            } else {
+                ctx.fillStyle = "#6366f1";
+                ctx.beginPath(); ctx.arc(player.x + player.width / 2, player.y + player.height / 2, 25, 0, Math.PI * 2); ctx.fill();
+            }
+
+            ctx.fillStyle = "#fbbf24"; ctx.font = "bold 12px Inter"; ctx.textAlign = "center";
+            ctx.fillText(`👑 GM_${player.jobClass.toUpperCase()}`, player.x + player.width / 2, player.y - 10);
+
+            activeEffects.forEach((eff, i) => {
+                ctx.strokeStyle = eff.type === "slash" ? "#ef4444" : "#a855f7";
+                ctx.lineWidth = 4;
+                ctx.beginPath(); ctx.arc(eff.x, eff.y, (eff.maxDuration - eff.duration) * 3, 0, Math.PI * 2); ctx.stroke();
+                eff.duration--;
+                if (eff.duration <= 0) activeEffects.splice(i, 1);
+            });
+
+            damageTexts.forEach((dt, i) => {
+                ctx.fillStyle = dt.color; ctx.font = "bold 14px Inter"; ctx.textAlign = "center";
+                ctx.fillText(dt.text, dt.x, dt.y);
+                dt.y -= dt.speedY; dt.opacity -= 0.02;
+                if (dt.opacity <= 0) damageTexts.splice(i, 1);
+            });
+
+            ctx.restore();
+        }
+
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+    </script>
+</body>
+</html>
