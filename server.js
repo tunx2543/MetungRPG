@@ -12,10 +12,33 @@ app.use(express.static(path.join(__dirname, 'public')))
 
 const players = new Map()
 
+const monsters = Object.fromEntries(
+  Array.from({ length: 20 }, (_, index) => {
+    const id = `mob_${index}`
+    return [id, {
+      id,
+      name: 'Poring',
+      x: Math.floor(Math.random() * 3000) + 500,
+      y: Math.floor(Math.random() * 3000) + 500,
+      hp: 50,
+      maxHp: 50,
+    }]
+  }),
+)
+
+setInterval(() => {
+  Object.values(monsters).forEach((monster) => {
+    monster.x = Math.max(80, Math.min(3920, monster.x + (Math.random() - 0.5) * 60))
+    monster.y = Math.max(80, Math.min(3920, monster.y + (Math.random() - 0.5) * 60))
+    io.emit('monsterMoved', monster)
+  })
+}, 2000)
+
 io.on('connection', (socket) => {
   const player = { id: socket.id, name: `นักผจญภัย ${players.size + 1}`, x: 480, y: 360, color: '#e8b86d' }
   players.set(socket.id, player)
   socket.emit('world:state', Object.fromEntries(players))
+  socket.emit('currentMonsters', monsters)
   socket.broadcast.emit('player:joined', player)
 
   socket.on('player:update', (position) => {

@@ -1,5 +1,6 @@
 const socket = io()
 const players = new Map()
+const monsters = new Map()
 let localPlayer
 let playerName = 'นักผจญภัย'
 let touchDirection = { x: 0, y: 0 }
@@ -23,6 +24,8 @@ class ForestScene extends Phaser.Scene {
     this.createTouchControls()
     this.createLocalPlayer()
     socket.on('world:state', (state) => Object.values(state).forEach((player) => this.upsertPlayer(player)))
+    socket.on('currentMonsters', (state) => Object.values(state).forEach((monster) => this.upsertMonster(monster)))
+    socket.on('monsterMoved', (monster) => this.upsertMonster(monster))
     socket.on('player:joined', (player) => this.upsertPlayer(player))
     socket.on('player:updated', (player) => this.upsertPlayer(player))
     socket.on('player:left', (id) => this.removePlayer(id))
@@ -127,6 +130,18 @@ class ForestScene extends Phaser.Scene {
     if (!avatar) { avatar = this.add.container(player.x, player.y).setDepth(9); const sprite = this.add.sprite(0, -8, 'ro_player').setScale(1.25).setTint(0x88b7a1).play('walk_down'); avatar.add(sprite); avatar.add(this.add.text(0, -43, player.name, { fontFamily: 'Prompt', fontSize: '11px', color: colors.ink, backgroundColor: '#10251fcc', padding: { x: 5, y: 2 } }).setOrigin(0.5)); players.set(player.id, avatar) }
     avatar.x = player.x; avatar.y = player.y; avatar.list[1].setText(player.name)
     document.querySelector('#online-count').textContent = `${players.size + 1} ผู้เล่นออนไลน์`
+  }
+  upsertMonster(monster) {
+    let mob = monsters.get(monster.id)
+    if (!mob) {
+      mob = this.add.container(monster.x, monster.y).setDepth(8)
+      const sprite = this.add.sprite(0, 0, 'poring').setScale(1.15).play('poring_idle')
+      const label = this.add.text(0, -30, monster.name, { fontFamily: 'Prompt', fontSize: '10px', color: '#f5d48b', backgroundColor: '#10251fcc', padding: { x: 4, y: 2 } }).setOrigin(0.5)
+      const hp = this.add.graphics().fillStyle(0x29473c).fillRoundedRect(-20, -20, 40, 4, 2).fillStyle(0xc96b59).fillRoundedRect(-20, -20, 40, 4, 2)
+      mob.add([sprite, hp, label])
+      monsters.set(monster.id, mob)
+    }
+    mob.setPosition(monster.x, monster.y)
   }
   removePlayer(id) { players.get(id)?.destroy(); players.delete(id); document.querySelector('#online-count').textContent = `${players.size + 1} ผู้เล่นออนไลน์` }
   setConnection(connected) { document.querySelector('#online-count').textContent = connected ? `${players.size + 1} ผู้เล่นออนไลน์` : 'ออฟไลน์' }
