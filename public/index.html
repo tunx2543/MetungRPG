@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#10251f" />
+    <title>Metung RPG — ป่าหมอกนิรันดร์</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;500;600;700&family=Prompt:wght@400;500;600&display=swap" rel="stylesheet" />
+    <style>
+      :root { color-scheme: dark; --ink: #eaf0df; --muted: #a8b7a2; --forest: #0c1b17; --panel: #10251f; --gold: #e8b86d; }
+      * { box-sizing: border-box; }
+      body { margin: 0; min-width: 320px; background: radial-gradient(circle at 50% 0%, #214c3d 0, #0c1b17 62%); color: var(--ink); font-family: Prompt, sans-serif; }
+      .shell { min-height: 100vh; display: grid; place-items: center; padding: 28px; }
+      .game-card { width: min(100%, 1040px); overflow: hidden; border: 1px solid #385c4c; border-radius: 22px; background: #0f211c; box-shadow: 0 24px 70px #0008, inset 0 1px #ffffff12; }
+      .brand-bar { min-height: 76px; display: flex; align-items: center; gap: 13px; padding: 14px 22px; background: #10251f; }
+      .brand-mark { display: grid; place-items: center; width: 43px; height: 43px; border: 1px solid #f5d48b; border-radius: 13px; color: #10251f; background: linear-gradient(135deg, #f5d48b, #be7c48); font: 700 26px Kanit, sans-serif; }
+      .eyebrow { margin: 0 0 1px; color: var(--gold); font: 600 10px Kanit, sans-serif; letter-spacing: .2em; }
+      h1 { margin: 0; color: var(--ink); font: 600 20px Kanit, sans-serif; }
+      .online { display: flex; align-items: center; gap: 8px; margin-left: auto; color: var(--muted); font-size: 12px; }
+      .online span:first-child { width: 7px; height: 7px; border-radius: 50%; background: #80c689; box-shadow: 0 0 10px #80c689; }
+      #game-container { display: grid; min-height: 320px; place-items: center; background: #183b31; }
+      #game-container canvas { max-width: 100%; height: auto !important; }
+      .tip-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px; padding: 13px 20px; color: var(--muted); background: #0b1915; font-size: 12px; }
+      .tip-bar strong { color: var(--gold); font-family: Kanit, sans-serif; font-weight: 500; }
+      .tip-divider { width: 1px; height: 14px; background: #385c4c; }
+      @media (max-width: 600px) { .shell { padding: 10px; } .game-card { border-radius: 16px; } .brand-bar { padding: 12px 15px; } h1 { font-size: 17px; } .online { font-size: 10px; } .tip-divider { display: none; } }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script defer src="/game.js"></script>
+  </head>
+  <body>
+    <main class="shell">
+      <section class="game-card" aria-label="Metung RPG game">
+        <header class="brand-bar">
+          <div class="brand-mark" aria-hidden="true">M</div>
+          <div><p class="eyebrow">METUNG RPG</p><h1>ป่าหมอกนิรันดร์</h1></div>
+          <div class="online"><span></span><span id="online-count">กำลังเชื่อมต่อ</span></div>
+        </header>
+        <div id="game-container"></div>
+        <div class="tip-bar"><strong>วิธีเล่น</strong><span>ใช้ปุ่มลูกศรหรือ WASD เพื่อเดินสำรวจ</span><span class="tip-divider"></span><span>คลิกชื่อด้านบนเพื่อเปลี่ยนชื่อฮีโร่</span></div>
+      </section>
+    </main>
+  </body>
+</html>
