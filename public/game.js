@@ -2,6 +2,7 @@ const socket = io()
 const players = new Map()
 let localPlayer
 let playerName = 'นักผจญภัย'
+let touchDirection = { x: 0, y: 0 }
 
 const colors = { ink: '#eaf0df', muted: '#a8b7a2', panel: '#10251f', accent: '#e8b86d', gold: '#f5d48b' }
 
@@ -14,11 +15,15 @@ class ForestScene extends Phaser.Scene {
     this.drawWorld()
     this.keys = this.input.keyboard.addKeys('W,A,S,D,UP,LEFT,DOWN,RIGHT')
     this.createHud()
+    this.createTouchControls()
     this.createLocalPlayer()
     socket.on('world:state', (state) => Object.values(state).forEach((player) => this.upsertPlayer(player)))
     socket.on('player:joined', (player) => this.upsertPlayer(player))
     socket.on('player:updated', (player) => this.upsertPlayer(player))
     socket.on('player:left', (id) => this.removePlayer(id))
+    socket.on('player:attacked', ({ playerId, x, y }) => {
+      if (playerId !== socket.id) this.showDamage(x, y - 42, 'ATK!', '#f5d48b')
+    })
     socket.on('connect', () => this.setConnection(true))
     socket.on('disconnect', () => this.setConnection(false))
   }
@@ -36,6 +41,34 @@ class ForestScene extends Phaser.Scene {
     this.add.text(480, 224, 'ดินแดนแห่งคำสัญญาและความลับ', { fontFamily: 'Prompt', fontSize: '14px', color: colors.ink }).setOrigin(0.5).setAlpha(0.65)
     this.add.text(108, 322, 'หมู่บ้านเมถุน', { fontFamily: 'Kanit', fontSize: '16px', color: '#f7e6bd' }).setOrigin(0.5).setRotation(-0.08)
     this.add.text(842, 322, 'หุบเขาหมอก', { fontFamily: 'Kanit', fontSize: '16px', color: '#f7e6bd' }).setOrigin(0.5).setRotation(0.08)
+  }
+  createTouchControls() {
+    const base = this.add.circle(86, 548, 52, 0x10251f, 0.82).setScrollFactor(0).setDepth(30).setStrokeStyle(1, 0x8aa88e, 0.6)
+    const thumb = this.add.circle(86, 548, 22, 0x8aa88e, 0.72).setScrollFactor(0).setDepth(31)
+    const attack = this.add.circle(874, 548, 34, 0xc96b59, 0.9).setScrollFactor(0).setDepth(30).setInteractive({ useHandCursor: true })
+    this.add.text(874, 548, 'โจมตี', { fontFamily: 'Kanit', fontSize: '12px', color: '#fff5de' }).setOrigin(0.5).setScrollFactor(0).setDepth(31)
+    base.setInteractive()
+    base.on('pointermove', (pointer) => {
+      if (!pointer.isDown) return
+      const dx = pointer.x - 86
+      const dy = pointer.y - 548
+      const distance = Math.max(1, Math.hypot(dx, dy))
+      const strength = Math.min(1, distance / 52)
+      touchDirection = { x: (dx / distance) * strength, y: (dy / distance) * strength }
+      thumb.setPosition(86 + touchDirection.x * 25, 548 + touchDirection.y * 25)
+    })
+    const resetJoystick = () => { touchDirection = { x: 0, y: 0 }; thumb.setPosition(86, 548) }
+    base.on('pointerup', resetJoystick)
+    base.on('pointerout', resetJoystick)
+    attack.on('pointerdown', () => {
+      const damage = Phaser.Math.Between(10, 59)
+      this.showDamage(localPlayer.x, localPlayer.y - 42, damage, '#f5d48b')
+      socket.emit('player:attack')
+    })
+  }
+  showDamage(x, y, value, color) {
+    const text = this.add.text(x, y, String(value), { fontFamily: 'Kanit', fontSize: '18px', color, stroke: '#10251f', strokeThickness: 4 }).setOrigin(0.5).setDepth(20)
+    this.tweens.add({ targets: text, y: y - 42, alpha: 0, duration: 720, onComplete: () => text.destroy() })
   }
   createLocalPlayer() {
     localPlayer = this.add.container(480, 320).setDepth(10)
@@ -64,6 +97,8 @@ class ForestScene extends Phaser.Scene {
     if (this.keys.D.isDown || this.keys.RIGHT.isDown) dx += speed
     if (this.keys.W.isDown || this.keys.UP.isDown) dy -= speed
     if (this.keys.S.isDown || this.keys.DOWN.isDown) dy += speed
+    dx += touchDirection.x * speed
+    dy += touchDirection.y * speed
     if (dx || dy) { localPlayer.x = Phaser.Math.Clamp(localPlayer.x + dx, 35, 925); localPlayer.y = Phaser.Math.Clamp(localPlayer.y + dy, 150, 580); socket.volatile.emit('player:update', { x: localPlayer.x, y: localPlayer.y }) }
   }
   upsertPlayer(player) {
@@ -78,4 +113,4 @@ class ForestScene extends Phaser.Scene {
   rename() { const next = window.prompt('ตั้งชื่อฮีโร่ของคุณ', playerName); if (next?.trim()) { playerName = next.trim().slice(0, 24); this.nameText.setText(playerName); localPlayer.list[1].setText(playerName); socket.emit('player:name', playerName) } }
 }
 
-new Phaser.Game({ type: Phaser.AUTO, parent: 'game-container', width: 960, height: 640, scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH }, scene: ForestScene, render: { antialias: true }, callbacks: { postBoot: (game) => { game.canvas.setAttribute('aria-label', 'แผนที่เกมป่าหมอกนิรันดร์') } } })
+new Phaser.Game({ type: Phaser.CANVAS, parent: 'game-container', width: 960, height: 640, scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH }, scene: ForestScene, render: { antialias: true }, callbacks: { postBoot: (game) => { game.canvas.setAttribute('aria-label', 'แผนที่เกมป่าหมอกนิรันดร์') } } })
