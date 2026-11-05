@@ -8,9 +8,14 @@ const colors = { ink: '#eaf0df', muted: '#a8b7a2', panel: '#10251f', accent: '#e
 
 class ForestScene extends Phaser.Scene {
   constructor() { super('ForestScene') }
-  preload() { this.load.tilemapTiledJSON('map', '/assets/map.json') }
+  preload() {
+    this.load.tilemapTiledJSON('map', '/assets/map.json')
+    this.load.spritesheet('ro_player', '/assets/character_spritesheet.png', { frameWidth: 32, frameHeight: 48 })
+    this.load.spritesheet('poring', '/assets/poring_sprite.png', { frameWidth: 32, frameHeight: 32 })
+  }
   create() {
     this.cameras.main.setBackgroundColor('#183b31')
+    this.createAnims(this)
     this.map = this.make.tilemap({ key: 'map' })
     this.drawWorld()
     this.keys = this.input.keyboard.addKeys('W,A,S,D,UP,LEFT,DOWN,RIGHT')
@@ -26,6 +31,11 @@ class ForestScene extends Phaser.Scene {
     })
     socket.on('connect', () => this.setConnection(true))
     socket.on('disconnect', () => this.setConnection(false))
+  }
+  createAnims(scene) {
+    const directions = [['walk_down', 0], ['walk_left', 4], ['walk_right', 8], ['walk_up', 12]]
+    directions.forEach(([key, start]) => scene.anims.create({ key, frames: scene.anims.generateFrameNumbers('ro_player', { start, end: start + 3 }), frameRate: 8, repeat: -1 }))
+    scene.anims.create({ key: 'poring_idle', frames: scene.anims.generateFrameNumbers('poring', { start: 0, end: 3 }), frameRate: 5, repeat: -1 })
   }
   drawWorld() {
     const g = this.add.graphics()
@@ -72,9 +82,10 @@ class ForestScene extends Phaser.Scene {
   }
   createLocalPlayer() {
     localPlayer = this.add.container(480, 320).setDepth(10)
-    const body = this.add.graphics().fillStyle(0xe8b86d).fillCircle(0, 0, 18).fillStyle(0x315c4a).fillCircle(0, 3, 11)
-    const label = this.add.text(0, -34, playerName, { fontFamily: 'Prompt', fontSize: '12px', color: colors.ink, backgroundColor: '#10251fcc', padding: { x: 6, y: 3 } }).setOrigin(0.5)
-    localPlayer.add([body, label])
+    this.playerSprite = this.add.sprite(0, -10, 'ro_player').setOrigin(0.5, 0.5).setScale(1.45)
+    this.playerSprite.play('walk_down')
+    const label = this.add.text(0, -48, playerName, { fontFamily: 'Prompt', fontSize: '12px', color: colors.ink, backgroundColor: '#10251fcc', padding: { x: 6, y: 3 } }).setOrigin(0.5)
+    localPlayer.add([this.playerSprite, label])
     this.input.keyboard.on('keydown-N', () => this.rename())
   }
   createHud() {
@@ -99,12 +110,21 @@ class ForestScene extends Phaser.Scene {
     if (this.keys.S.isDown || this.keys.DOWN.isDown) dy += speed
     dx += touchDirection.x * speed
     dy += touchDirection.y * speed
-    if (dx || dy) { localPlayer.x = Phaser.Math.Clamp(localPlayer.x + dx, 35, 925); localPlayer.y = Phaser.Math.Clamp(localPlayer.y + dy, 150, 580); socket.volatile.emit('player:update', { x: localPlayer.x, y: localPlayer.y }) }
+    if (dx || dy) {
+      localPlayer.x = Phaser.Math.Clamp(localPlayer.x + dx, 35, 925)
+      localPlayer.y = Phaser.Math.Clamp(localPlayer.y + dy, 150, 580)
+      const angle = Phaser.Math.RadToDeg(Math.atan2(dy, dx))
+      const animation = angle >= -45 && angle < 45 ? 'walk_right' : angle >= 45 && angle < 135 ? 'walk_down' : angle >= -135 && angle < -45 ? 'walk_up' : 'walk_left'
+      this.playerSprite.play(animation, true)
+      socket.volatile.emit('player:update', { x: localPlayer.x, y: localPlayer.y })
+    } else {
+      this.playerSprite.stop()
+    }
   }
   upsertPlayer(player) {
     if (player.id === socket.id) return
     let avatar = players.get(player.id)
-    if (!avatar) { avatar = this.add.container(player.x, player.y).setDepth(9); avatar.add(this.add.graphics().fillStyle(0x88b7a1).fillCircle(0, 0, 16)); avatar.add(this.add.text(0, -31, player.name, { fontFamily: 'Prompt', fontSize: '11px', color: colors.ink, backgroundColor: '#10251fcc', padding: { x: 5, y: 2 } }).setOrigin(0.5)); players.set(player.id, avatar) }
+    if (!avatar) { avatar = this.add.container(player.x, player.y).setDepth(9); const sprite = this.add.sprite(0, -8, 'ro_player').setScale(1.25).setTint(0x88b7a1).play('walk_down'); avatar.add(sprite); avatar.add(this.add.text(0, -43, player.name, { fontFamily: 'Prompt', fontSize: '11px', color: colors.ink, backgroundColor: '#10251fcc', padding: { x: 5, y: 2 } }).setOrigin(0.5)); players.set(player.id, avatar) }
     avatar.x = player.x; avatar.y = player.y; avatar.list[1].setText(player.name)
     document.querySelector('#online-count').textContent = `${players.size + 1} ผู้เล่นออนไลน์`
   }
