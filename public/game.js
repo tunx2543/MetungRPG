@@ -83,12 +83,24 @@ class ForestScene extends Phaser.Scene {
     const text = this.add.text(x, y, String(value), { fontFamily: 'Kanit', fontSize: '18px', color, stroke: '#10251f', strokeThickness: 4 }).setOrigin(0.5).setDepth(20)
     this.tweens.add({ targets: text, y: y - 42, alpha: 0, duration: 720, onComplete: () => text.destroy() })
   }
+  createDynamicEntity(x, y, textureKey, scale = 1, name = 'Name', tint) {
+    const container = this.add.container(x, y)
+    this.physics.world.enable(container)
+    const sprite = this.add.sprite(0, 0, textureKey).setOrigin(0.5, 1).setScale(scale)
+    if (tint) sprite.setTint(tint)
+    const spriteHeight = sprite.displayHeight
+    const nameText = this.add.text(0, -spriteHeight - 20, name, { fontFamily: 'Prompt', fontSize: '12px', color: colors.ink, backgroundColor: '#10251fcc', padding: { x: 6, y: 3 } }).setOrigin(0.5)
+    const hpBar = this.add.graphics().fillStyle(0x29473c).fillRoundedRect(-20, -spriteHeight - 5, 40, 4, 2).fillStyle(0xc96b59).fillRoundedRect(-20, -spriteHeight - 5, 40, 4, 2)
+    container.add([sprite, nameText, hpBar])
+    container.body.setSize(32, 16)
+    container.body.setOffset(-16, -16)
+    return { container, sprite, nameText, hpBar }
+  }
   createLocalPlayer() {
-    localPlayer = this.add.container(480, 320).setDepth(10)
-    this.playerSprite = this.add.sprite(0, -10, 'ro_player').setOrigin(0.5, 0.5).setScale(1.45)
+    const entity = this.createDynamicEntity(480, 320, 'ro_player', 1.45, playerName)
+    localPlayer = entity.container.setDepth(10)
+    this.playerSprite = entity.sprite
     this.playerSprite.play('walk_down')
-    const label = this.add.text(0, -48, playerName, { fontFamily: 'Prompt', fontSize: '12px', color: colors.ink, backgroundColor: '#10251fcc', padding: { x: 6, y: 3 } }).setOrigin(0.5)
-    localPlayer.add([this.playerSprite, label])
     this.input.keyboard.on('keydown-N', () => this.rename())
   }
   createHud() {
@@ -127,27 +139,39 @@ class ForestScene extends Phaser.Scene {
   upsertPlayer(player) {
     if (player.id === socket.id) return
     let avatar = players.get(player.id)
-    if (!avatar) { avatar = this.add.container(player.x, player.y).setDepth(9); const sprite = this.add.sprite(0, -8, 'ro_player').setScale(1.25).setTint(0x88b7a1).play('walk_down'); avatar.add(sprite); avatar.add(this.add.text(0, -43, player.name, { fontFamily: 'Prompt', fontSize: '11px', color: colors.ink, backgroundColor: '#10251fcc', padding: { x: 5, y: 2 } }).setOrigin(0.5)); players.set(player.id, avatar) }
-    avatar.x = player.x; avatar.y = player.y; avatar.list[1].setText(player.name)
+    if (!avatar) {
+      const entity = this.createDynamicEntity(player.x, player.y, 'ro_player', 1.25, player.name, 0x88b7a1)
+      avatar = entity.container.setDepth(9)
+      entity.sprite.play('walk_down')
+      players.set(player.id, { avatar, entity })
+    }
+    const entry = players.get(player.id)
+    this.tweens.add({ targets: entry.avatar, x: player.x, y: player.y, duration: 220, ease: 'Sine.easeOut' })
+    entry.entity.nameText.setText(player.name)
     document.querySelector('#online-count').textContent = `${players.size + 1} ผู้เล่นออนไลน์`
   }
   upsertMonster(monster) {
-    let mob = monsters.get(monster.id)
-    if (!mob) {
-      mob = this.add.container(monster.x, monster.y).setDepth(8)
-      const sprite = this.add.sprite(0, 0, 'poring').setScale(1.15).play('poring_idle').setInteractive({ useHandCursor: true })
-      const label = this.add.text(0, -30, monster.name, { fontFamily: 'Prompt', fontSize: '10px', color: '#f5d48b', backgroundColor: '#10251fcc', padding: { x: 4, y: 2 } }).setOrigin(0.5)
-      const hp = this.add.graphics().fillStyle(0x29473c).fillRoundedRect(-20, -20, 40, 4, 2).fillStyle(0xc96b59).fillRoundedRect(-20, -20, 40, 4, 2)
-      sprite.on('pointerdown', () => {
+    let entry = monsters.get(monster.id)
+    if (!entry) {
+      const entity = this.createDynamicEntity(monster.x, monster.y, 'poring', 1.15, monster.name)
+      const mob = entity.container.setDepth(8)
+      entity.sprite.play('poring_idle').setInteractive({ useHandCursor: true })
+      entity.sprite.on('pointerdown', () => {
         socket.emit('monster:attack', { monsterId: monster.id })
-        this.showDamage(monster.x, monster.y - 34, Phaser.Math.Between(10, 59), '#f5d48b')
+        this.showDamage(mob.x, mob.y - entity.sprite.displayHeight - 8, Phaser.Math.Between(10, 59), '#f5d48b')
       })
-      mob.add([sprite, hp, label])
-      monsters.set(monster.id, mob)
+      entry = { mob, entity }
+      monsters.set(monster.id, entry)
     }
-    this.tweens.add({ targets: mob, x: monster.x, y: monster.y, duration: 500, ease: 'Sine.easeOut' })
+    this.tweens.add({ targets: entry.mob, x: monster.x, y: monster.y, duration: 500, ease: 'Sine.easeOut' })
+    entry.entity.nameText.setText(monster.name)
   }
-  removePlayer(id) { players.get(id)?.destroy(); players.delete(id); document.querySelector('#online-count').textContent = `${players.size + 1} ผู้เล่นออนไลน์` }
+  removePlayer(id) {
+    const entry = players.get(id)
+    entry?.avatar.destroy()
+    players.delete(id)
+    document.querySelector('#online-count').textContent = `${players.size + 1} ผู้เล่นออนไลน์`
+  }
   setConnection(connected) { document.querySelector('#online-count').textContent = connected ? `${players.size + 1} ผู้เล่นออนไลน์` : 'ออฟไลน์' }
   rename() { const next = window.prompt('ตั้งชื่อฮีโร่ของคุณ', playerName); if (next?.trim()) { playerName = next.trim().slice(0, 24); this.nameText.setText(playerName); localPlayer.list[1].setText(playerName); socket.emit('player:name', playerName) } }
 }
