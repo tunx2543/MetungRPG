@@ -26,11 +26,23 @@ io.on('connection', (socket) => {
     socket.broadcast.emit('player:updated', current)
   })
 
-  socket.on('player:attack', () => {
+  const broadcastAttack = () => {
     const current = players.get(socket.id)
     if (!current) return
-    io.emit('player:attacked', { playerId: socket.id, x: current.x, y: current.y })
-  })
+    socket.broadcast.emit('playerAttacked', {
+      playerId: socket.id,
+      x: current.x,
+      y: current.y,
+    })
+    socket.broadcast.emit('player:attacked', {
+      playerId: socket.id,
+      x: current.x,
+      y: current.y,
+    })
+  }
+
+  socket.on('player:attack', broadcastAttack)
+  socket.on('playerAttack', broadcastAttack)
 
   socket.on('player:name', (name) => {
     const current = players.get(socket.id)
